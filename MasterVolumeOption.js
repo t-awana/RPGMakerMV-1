@@ -6,6 +6,7 @@
 // http://opensource.org/licenses/mit-license.php
 // ----------------------------------------------------------------------------
 // Version
+// 1.2.2 2026/05/13 コンフィグファイルが存在しないとき、プラグインパラメータで指定した初期値が反映されない問題を修正
 // 1.2.1 2023/07/23 コマンド数変更のパラメータを廃止
 // 1.2.0 2023/07/20 MZで動作するよう修正
 // 1.1.2 2018/01/15 RPGアツマールのマスターボリューム調整機能と競合する旨をヘルプに追記
@@ -108,6 +109,12 @@
         }
     });
 
+    const _ConfigManager_load = ConfigManager.load;
+    ConfigManager.load = function () {
+        this.masterVolume = param.defaultValue || 0;
+        _ConfigManager_load.apply(this, arguments);
+    };
+
     const _ConfigManager_makeData = ConfigManager.makeData;
     ConfigManager.makeData      = function() {
         const config          = _ConfigManager_makeData.apply(this, arguments);
@@ -119,7 +126,7 @@
     ConfigManager.applyData      = function(config) {
         _ConfigManager_applyData.apply(this, arguments);
         const symbol        = 'masterVolume';
-        this.masterVolume = config.hasOwnProperty(symbol) ? this.readVolume(config, symbol) : param.defaultValue;
+        this.masterVolume = config.hasOwnProperty(symbol) ? this.readVolume(config, symbol) : param.defaultValue || 0;
     };
 
     //=============================================================================
