@@ -6,6 +6,7 @@
 // http://opensource.org/licenses/mit-license.php
 // ----------------------------------------------------------------------------
 // Version
+// 3.3.1? XXXX/XX/XX オリジナルのタイトルBGMが正常に認識されない問題を修正
 // 3.3.0 2025/05/07 タイトルBGMの音量、ピッチ、左右バランスを指定できる機能を追加
 // 3.2.0 2024/07/28 タイトル画面2を進行状況に応じて変更する機能を追加
 // 3.1.0 2024/07/27 タイトルコールと組み合わせてタイトルコールを演奏する機能を追加
@@ -324,6 +325,9 @@
         param.TitleList.forEach(set => {
             if (set.TitleBgm && storyPhase >= set.StoryPhaseCondition) {
                 $dataSystem.titleBgm.originalName = $dataSystem.titleBgm.name;
+                $dataSystem.titleBgm.originalVolume = $dataSystem.titleBgm.volume;
+                $dataSystem.titleBgm.originalPitch = $dataSystem.titleBgm.pitch;
+                $dataSystem.titleBgm.originalPan = $dataSystem.titleBgm.pan;
                 $dataSystem.titleBgm.name = set.TitleBgm;
                 if (set.TitleBgmVolume !== undefined) {
                     $dataSystem.titleBgm.volume = set.TitleBgmVolume;
