@@ -6,6 +6,9 @@
 // http://opensource.org/licenses/mit-license.php
 // ----------------------------------------------------------------------------
 // Version
+// 2.3.2 2025/02/08 最新データを自動ロードする設定のとき、ロード後のフェードインが行われない問題を修正
+// 2.3.1 2023/09/13 決定ボタン以外のボタンでゲームスタートしていた現象を修正
+// 2.3.0 2022/08/26 X座標の調整機能とスタート画像をピクチャから指定できる機能を追加
 // 2.2.0 2021/03/23 MZで動作するよう修正
 // 2.1.0 2018/12/01 スタート文字列のY座標を調整できるようにしました。
 // 2.0.0 2017/03/01 セーブファイルが存在する場合の動作を3通りから選択できる機能を追加
@@ -38,6 +41,14 @@
  * @default
  * @type struct<Font>
  *
+ * @param startImage
+ * @text スタート画像
+ * @desc スタート文字列の代わりに指定する画像です。指定した場合スタート文字列は無視されます。
+ * @default
+ * @type file
+ * @dir img/pictures
+ * @require 1
+ *
  * @param fileExistAction
  * @text ファイル存在時の動作
  * @desc セーブが存在する場合の動作を選択します。
@@ -55,6 +66,14 @@
  * @desc スタートしたときの効果音情報です。指定しない場合はシステム効果音の決定が演奏されます。
  * @default
  * @type struct<AudioSe>
+ *
+ * @param adjustX
+ * @text X座標調整値
+ * @desc スタート文字列の表示X座標を補正します。
+ * @default 0
+ * @min -9999
+ * @max 9999
+ * @type number
  *
  * @param adjustY
  * @text Y座標調整値
@@ -234,12 +253,17 @@
     };
 
     Scene_Title.prototype.isTriggered = function() {
-        return Object.keys(Input.keyMapper).some(function(keyCode) {
-                return Input.isTriggered(Input.keyMapper[keyCode]);
-            }.bind(this)) ||
-            Object.keys(Input.gamepadMapper).some(function(keyCode) {
-                return Input.isTriggered(Input.gamepadMapper[keyCode]);
-            }.bind(this)) || TouchInput.isTriggered();
+        return Input.isTriggered('ok') || TouchInput.isTriggered();
+    };
+
+    const _Scene_Map_needsFadeIn = Scene_Map.prototype.needsFadeIn;
+    Scene_Map.prototype.needsFadeIn = function() {
+        const result = _Scene_Map_needsFadeIn.apply(this, arguments);
+        if (param.fileExistAction === 2 && SceneManager.isPreviousScene(Scene_Title)) {
+            return true;
+        } else {
+            return result;
+        }
     };
 
     //=============================================================================
@@ -258,10 +282,16 @@
     Sprite_GameStart.prototype.initialize = function() {
         Sprite.prototype.initialize.call(this);
         this.y             = Graphics.height - 160 + (param.adjustY || 0);
+        this.x             = Graphics.width / 2 + (param.adjustX || 0);
+        this.anchor.x = 0.5;
         this.opacity_shift = -2;
     };
 
     Sprite_GameStart.prototype.draw = function() {
+        if (param.startImage) {
+            this.bitmap = ImageManager.loadPicture(param.startImage);
+            return;
+        }
         const font    = param.font || Sprite_GameStart.DEFALT_FONT;
         this.bitmap = new Bitmap(Graphics.width, font.size);
         if (font.name) {

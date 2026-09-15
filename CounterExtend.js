@@ -6,6 +6,41 @@
 // http://opensource.org/licenses/mit-license.php
 // ----------------------------------------------------------------------------
 // Version
+// 3.1.0 2026/07/07 反撃条件に「ステート」を追加
+// 3.0.1 2025/12/23 インターセプターで妨害されたあとの攻撃が妨害した対象以外に発動する場合がある問題を修正
+// 3.0.0 2025/10/26 クロスカウンターとインターセプターのパラメータを「反撃種別」に統合
+//                  クロスカウンターの反撃判定を攻撃を受けたあとに行うよう仕様変更
+// 2.15.0 2025/06/25 反撃条件に「ダメージタイプ」を追加
+// 2.14.0 2025/03/24 反撃スキルにのみ適用される専用のダメージ倍率を設定できる機能を追加
+// 2.13.2 2024/08/19 反撃頻度の判定が特定条件下で複数回行われていた問題を修正
+// 2.13.1 2024/06/17 反撃頻度に関するヘルプを少し修正
+// 2.13.0 2024/03/17 自分自身や味方を対象にした行動でも反撃(リアクション)が発動できる機能を追加
+// 2.12.5 2024/02/27 インターセプター設定で割り込みされたあとでスキルを発動するとコストが消費されない問題を修正
+// 2.12.4 2024/02/27 行動制約が有効なときに、対象が使用者のスキルで反撃すると、使用者以外を対象にしてしまう場合がある問題を修正
+// 2.12.3 2024/01/17 2.12.1の修正方法を変更
+// 2.12.2 2024/01/17 2.12.1の修正で、行動制約の状態異常から復帰したときにゲージが溜まらなくなる問題を修正
+// 2.12.1 2024/01/16 タイムプログレス戦闘において、インターセプター設定で反撃で相手を行動不能にしたとき、行動入力中だと行動決定時にエラーになる問題を修正
+// 2.12.0 2023/08/17 反撃条件を「満たさなかったときに」だけ反撃できる設定を追加
+// 2.11.0 2023/08/11 デフォルトの反撃メッセージを表示する設定を追加
+// 2.10.0 2023/07/24 反撃条件に「スキルタイプ」を追加
+// 2.9.1 2023/01/13 連続攻撃を考慮がOFFにとき、連続攻撃の途中で戦闘不能になったバトラーを蘇生すると、蘇生時に反撃が発動する問題を修正
+//                  連続攻撃を考慮がOFFにとき、lastHpDamageのプロパティが最初の1回以外は0になってしまう問題を修正
+// 2.9.0 2023/01/08 反撃条件に「弱点」および「耐性」だった場合を追加
+// 2.8.0 2022/10/05 複数の反撃条件を同時に満たしたとき、ステートの優先度の高い方の設定で優先的に反撃するよう修正
+// 2.7.0 2022/08/30 パラメータのスキルリストに識別子を追加
+// 2.6.0 2022/06/13 2.5.0の機能の範囲をスキルから対象のバトラー全体に拡張
+// 2.5.0 2022/06/12 反撃条件に、メモ欄に指定したタグが書かれている場合のみ反撃できる設定を追加
+// 2.4.2 2022/04/06 相手の連続攻撃および複数回行動に対して、複数の反撃条件を満たした場合でも最初の一回しか反撃しなくなる設定を追加
+// 2.4.1 2022/03/10 複数の特徴オブジェクトを持つバトラーについて反撃頻度タグが正常に機能しない問題を修正
+// 2.4.0 2022/02/19 反撃スキルの計算式で、直前に受けたHPダメージを参照できる機能を追加
+// 2.3.1 2022/02/07 反撃実行時に厳密な生存判定を追加
+// 2.3.0 2022/02/06 相手の行動の直前に反撃を出してから行動を受ける『インターセプター』型の反撃機能を追加
+// 2.2.3 2022/01/25 二回行動の敵キャラが一回しか行動できなかったときに反撃するとエラーが発生する問題を修正
+// 2.2.2 2021/11/10 タイムプログレス戦闘採用時、2回行動の相手に反撃した場合、相手が以後行動しなくなる問題を修正
+// 2.2.1 2021/10/20 行動制約ステートが有効なときに反撃判定が行われてしまう問題を修正
+// 2.2.0 2021/08/09 反撃頻度に値を加算できるタグを追加
+// 2.1.3 2021/07/31 反撃条件に属性を指定したとき、通常攻撃に付与された属性を考慮していなかった問題を修正
+// 2.1.2 2021/07/15 アクティブタイムバトルで、行動入力中に自身の反撃が発動した場合、行動入力後にエラーになる場合がある問題を修正
 // 2.1.1 2021/03/08 スクリプトで使用可能な変数の説明とスクリプトの凡例を追加
 // 2.1.0 2021/03/07 反撃設定が複数あった場合の判定処理が一部間違っていた問題を修正
 //                  スキルに反撃回避率を設定できる機能を追加
@@ -45,41 +80,11 @@
 // 1.0.0 2016/11/15 初版
 // ----------------------------------------------------------------------------
 // [Blog]   : https://triacontane.blogspot.jp/
-// [Twitter]: https://twitter.com/triacontane/
+// [X]      : https://x.com/triacontane/
 // [GitHub] : https://github.com/triacontane/
 //=============================================================================
 
 /*:
- * @plugindesc CounterExtendPlugin
- * @target MZ
- * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/CounterExtend.js
- * @base PluginCommonBase
- * @author triacontane
- *
- * @param CounterList
- * @desc This is a list of counterattack settings. Specify the identifier specified here from each note.
- * @default []
- * @type struct<COUNTER>[]
- *
- * @help CounterExtend.js
- *
- * You can activate skills and items as a reaction (counterattack) to your opponent's actions.
- * You can set up counterattacks under a variety of conditions and settings.
- * This works independently of the "Counterattack Rate" feature, which can be set by default.
- *
- * Specify the following in the memo field (Actor, Occupation, Weapon, Armor, State, Enemy Character)
- * that has the feature.
- * Please specify as follows If the battler has that trait, it will counterattack.
- * For example, if you set it in a state's memo field, the battler with that state on will
- * When the battler is attacked, it will counterattack.
- *
- * <CounterExtend:aaa> # Counterattack with a counterattack setting that matches the identifier [aaa].
- * <CounterExtend:1> # Counterattack with the [1]th counterattack setting in the counterattack list.
- *
- * Detailed counterattack settings can be entered from the plugin parameters.
- * Unlike a normal counterattack, it will be triggered after the opponent's action is over.
- */
-/*:ja
  * @plugindesc 反撃拡張プラグイン
  * @target MZ
  * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/CounterExtend.js
@@ -91,6 +96,12 @@
  * @desc 反撃設定のリストです。ここで指定した識別子を各メモ欄から指定します。
  * @default []
  * @type struct<COUNTER>[]
+ *
+ * @param ConsiderateRepeat
+ * @text 連続攻撃を考慮
+ * @desc 有効にした場合、相手の連続攻撃、複数回行動に対して一度しか反撃しなくなります。
+ * @default false
+ * @type boolean
  *
  * @help CounterExtend.js
  *
@@ -111,8 +122,16 @@
  * 反撃の詳細設定はプラグインパラメータから入力します。
  * 通常の反撃とは異なり、相手の行動が終わってから発動します。
  *
+ * 反撃スキルの対象者は以下の条件で決定されます。
+ * ・反撃スキルの対象が「敵」系の場合、攻撃してきた相手
+ * ・反撃スキルの対象が「味方」系の場合、反撃の実行者
+ * ・反撃スキルの対象が「全体」系の場合、スキル通り
+ *
+ * 複数の反撃タグを同時に満たしたときは以下の順で発動します。
+ * ステート(優先度順) > アクター、敵キャラ > 職業 > 装備品
+ *
  * メモ欄に以下の通り入力したスキル、アイテムは相手の反撃頻度を
- * 指定した値だけ減らすことができます。
+ * 指定した値だけ減らせます。
  * <CounterEvasion:100>
  * <反撃回避:100>
  *
@@ -120,6 +139,15 @@
  * subject -> 反撃するバトラー
  * target -> 相手のバトラー
  * triggerAction -> 相手のバトラーが使用した行動
+ *
+ * 〇反撃スキルの計算式で使用可能な変数
+ * a.lastHpDamage -> 反撃者が直前に受けたHPダメージ
+ *
+ * このプラグインの利用にはベースプラグイン『PluginCommonBase.js』が必要です。
+ * 『PluginCommonBase.js』は、RPGツクールMZのインストールフォルダ配下の
+ * 以下のフォルダに格納されています。
+ * dlc/BasicResources/plugins/official
+ *
  */
 
 /*~struct~COUNTER:
@@ -146,14 +174,26 @@
  * @desc 反撃実行後にメッセージを表示できます。
  * @default
  *
- * @param CrossCounter
- * @text クロスカウンター
- * @desc 有効にした場合、攻撃を受けてから反撃します。
+ * @param DefaultMessage
+ * @text デフォルトメッセージ
+ * @desc 有効にすると、デフォルトの反撃メッセージを表示します。
  * @default false
  * @type boolean
  *
+ * @param CounterType
+ * @text 反撃種別
+ * @desc 反撃の種別です。クロスカウンターは攻撃を受けた後に反撃判定を行います。
+ * @default Normal
+ * @type select
+ * @option 通常(攻撃を無効化して反撃)
+ * @value Normal
+ * @option クロスカウンター(攻撃を受けてから反撃)
+ * @value CrossCounter
+ * @option インターセプター(攻撃に割り込んで反撃)
+ * @value Interceptor
+ *
  * @param CrossCounterCondition
- * @parent CrossCounter
+ * @parent CounterType
  * @text クロスカウンター条件
  * @desc クロスカウンターが有効な場合に追加で指定する発動条件です。
  * @default 0
@@ -194,6 +234,11 @@
 
 /*~struct~SKILL:
  *
+ * @param Id
+ * @text 識別子
+ * @desc パラメータを一覧で見たときに識別しやすくするための識別子です。プラグイン上は参照されません。
+ * @default
+ *
  * @param SkillId
  * @text 反撃スキル
  * @desc 反撃時に発動するスキルです。0を指定した場合、通常攻撃で反撃します。
@@ -211,6 +256,12 @@
  * @desc 有効にした場合、相手が使用したスキルを使って反撃します。
  * @type boolean
  * @default false
+ *
+ * @param DamageRate
+ * @text ダメージ倍率
+ * @desc 反撃時にのみ適用される専用のダメージ倍率(%)です。
+ * @type number
+ * @default 100
  *
  * @param IdCondition
  * @text 反撃条件(スキルID)
@@ -230,11 +281,48 @@
  * @option 魔法攻撃
  * @value 2
  *
+ * @param DamageTypeCondition
+ * @text 反撃条件(ダメージ)
+ * @desc 指定した場合、特定のダメージタイプのスキルに対してのみ反撃します。
+ * @type select[]
+ * @default []
+ * @option なし
+ * @value 0
+ * @option HPダメージ
+ * @value 1
+ * @option MPダメージ
+ * @value 2
+ * @option HP回復
+ * @value 3
+ * @option MP回復
+ * @value 4
+ * @option HP吸収
+ * @value 5
+ * @option MP吸収
+ * @value 6
+ *
+ * @param SkillTypeCondition
+ * @text 反撃条件(スキルタイプ)
+ * @desc 指定した場合、特定のスキルタイプのスキルに対してのみ反撃します。
+ * @type number
+ *
  * @param ElementCondition
  * @text 反撃条件(属性)
  * @desc 指定した場合、特定の属性(データベースの『タイプ』->『属性』の数値)のスキルに対してのみ反撃します。
  * @type number
  * @default 0
+ *
+ * @param WeakCondition
+ * @text 反撃条件(弱点)
+ * @desc 指定した場合、受けたスキルが弱点もしくは耐性だった場合のみ反撃します。
+ * @type select
+ * @default 0
+ * @option なし
+ * @value 0
+ * @option 弱点
+ * @value 1
+ * @option 耐性
+ * @value 2
  *
  * @param SwitchCondition
  * @text 反撃条件(スイッチ)
@@ -242,13 +330,43 @@
  * @type switch
  * @default 0
  *
+ * @param StateCondition
+ * @text 反撃条件(ステート)
+ * @desc 指定した場合、ステートにかかっているときのみ反撃します。複数指定時はいずれかのステートにかかっていれば反撃します。
+ * @type state[]
+ * @default []
+ *
+ * @param Subject
+ * @text 反撃条件(使用者)
+ * @desc 指定した場合、使用者が特定のバトラーのときのみ反撃します。
+ * @type select
+ * @default opponentsUnit
+ * @option 相手ユニット
+ * @value opponentsUnit
+ * @option 味方ユニット(自身含む)
+ * @value friendsUnit
+ * @option 味方ユニット(自身含まない)
+ * @value friendsUnitWithoutUser
+ * @option 自分自身
+ * @value user
+ * @option 全員
+ * @value all
+ *
+ * @param MemoTagCondition
+ * @text 反撃条件(メモタグ)
+ * @desc 指定した場合、メモ欄に指定したタグが書かれているスキル、バトラー(武器防具含む)に対してのみ反撃します。
+ * @default
+ *
  * @param ScriptCondition
  * @text 反撃条件(スクリプト)
  * @desc 指定した場合、スクリプトの評価結果が有効なときのみ反撃します。
  * @type combo
  * @default
+ * @option subject.hpRate() <= 0.5; // 自分のHPが50%以下の場合
  * @option subject.mpRate() <= 0.5; // 自分のMPが50%以下の場合
+ * @option subject.tpRate() >= 1.0; // 自分のTPが100%の場合
  * @option triggerAction.calcElementRate(subject) > 1.0; // 弱点属性の場合
+ * @option triggerAction.calcElementRate(subject) < 1.0; // 耐性属性の場合
  *
  * @param Frequency
  * @text 反撃頻度
@@ -257,6 +375,17 @@
  * @default 100
  * @min 0
  * @max 100
+ *
+ * @param FrequencyTag
+ * @text 反撃頻度タグ
+ * @desc 指定した名前のタグ（例：<CounterFrequency:100>）から取得した値をすべて『反撃頻度』に加算して判定します。
+ * @default CounterFrequency
+ *
+ * @param ConditionReverse
+ * @text 反撃条件反転
+ * @desc 有効にすると、反撃条件を満たさなかったときに反撃します。
+ * @type boolean
+ * @default false
  *
  */
 
@@ -278,11 +407,11 @@
             super(subject, false);
         }
 
-        setup(triggerAction, target) {
-            if (triggerAction.isCounter() || this.friendsUnit().members().contains(target)) {
+        setup(triggerAction, type) {
+            if (triggerAction.isCounter() || !this.subject().canMove()) {
                 return;
             }
-            for (const counter of this.findParams()) {
+            for (const counter of this.findParams(type)) {
                 if (this.isValidSkill(counter, triggerAction)) {
                     this._counter = counter;
                     return;
@@ -291,13 +420,19 @@
             this._counter = null;
         }
 
-        findParams() {
-            const tagList = this.subject().traitObjects().map(function(traitObject) {
+        findParams(type) {
+            const tagList = this.subject().traitObjects().map(traitObject => {
                 return PluginManagerEx.findMetaValue(traitObject, ['反撃拡張', 'CounterExtend']);
+            }).filter(tag => tag);
+            const paramList = [];
+            tagList.forEach(tag => {
+                const tagIndex = parseInt(tag) - 1;
+                const counter = param.CounterList.find((item, index) => tag === item.Id || tagIndex === index);
+                if (counter && counter.CounterType === type) {
+                    paramList.push(counter);
+                }
             });
-            const indexList = tagList.map(tag => parseInt(tag));
-            return param.CounterList.filter((item, index) =>
-                tagList.contains(item.Id) || indexList.contains(index + 1));
+            return paramList;
         }
 
         isValidSkill(counter, triggerAction) {
@@ -310,20 +445,68 @@
             const target = triggerAction.subject();
             const subject = this.subject();
             const evasion = PluginManagerEx.findMetaValue(triggerSkill, ['CounterEvasion', '反撃回避']) || 0;
+            const frequency = skill.Frequency + subject.traitObjects().reduce((prev, traitObject) => {
+                return prev + (PluginManagerEx.findMetaValue(traitObject, skill.FrequencyTag) || 0);
+            }, 0);
             const checkParam = (param, value) => param && param !== value;
             conditions.push(() => checkParam(skill.IdCondition, triggerSkill.id));
             conditions.push(() => checkParam(skill.HitTypeCondition, triggerSkill.hitType));
-            conditions.push(() => checkParam(skill.ElementCondition, triggerSkill.damage.elementId));
+            conditions.push(() => checkParam(skill.SkillTypeCondition, triggerSkill.stypeId));
+            const damageTypes = skill.DamageTypeCondition || [];
+            conditions.push(() => damageTypes.length > 0 && !this.checkDamageType(damageTypes));
+            conditions.push(() => skill.ElementCondition && !triggerAction.hasElement(skill.ElementCondition));
+            conditions.push(() => skill.WeakCondition && !this.hasWeakResistance(triggerAction, subject, skill.WeakCondition));
             conditions.push(() => skill.SwitchCondition && !$gameSwitches.value(skill.SwitchCondition));
+            const stateConditions = skill.StateCondition || [];
+            conditions.push(() => stateConditions.length > 0 && !this.hasStateCondition(subject, stateConditions));
+            conditions.push(() => skill.MemoTagCondition && !this.hasMemoTag(triggerSkill, subject, skill.MemoTagCondition));
             conditions.push(() => skill.ScriptCondition && !eval(skill.ScriptCondition));
-            conditions.push(() => skill.Frequency > 0 && Math.randomInt(100) >= skill.Frequency - evasion);
+            conditions.push(() => Math.randomInt(100) >= frequency - evasion);
             conditions.push(() => counter.PayCounterCost && !this.isValid());
+            conditions.push(() => !this.isIncludesSubject(target, skill.Subject));
             this.setCounterSkill(skill, triggerSkill);
             this.setCounterTarget(target);
-            return !conditions.some(condition => condition());
+            const result = !conditions.some(condition => condition());
+            return skill.ConditionReverse ? !result : result;
+        }
+
+        isIncludesSubject(triggerSubject, condition) {
+            const subject = this.subject();
+            const friends = subject.friendsUnit().members();
+            const opponents = subject.opponentsUnit().members();
+            switch (condition) {
+                case 'friendsUnit':
+                    return friends.includes(triggerSubject);
+                case 'friendsUnitWithoutUser':
+                    return friends.includes(triggerSubject) && subject !== triggerSubject;
+                case 'user':
+                    return subject === triggerSubject;
+                case 'all':
+                    return true;
+                case 'opponentsUnit':
+                default:
+                    return opponents.includes(triggerSubject);
+            }
+        }
+
+        hasMemoTag(skill, target, tagName) {
+            const objList = target.traitObjects();
+            objList.push(skill);
+            return objList.some(obj => PluginManagerEx.findMetaValue(obj, tagName));
+        }
+
+        hasStateCondition(subject, stateConditions) {
+            return stateConditions.some(stateId => subject.isStateAffected(stateId));
+        }
+
+        hasWeakResistance(action, target, weakCondition) {
+            const rate = action.calcElementRate(target);
+            return weakCondition === 1 ? rate > 1.0 : rate < 1.0;
         }
 
         setCounterSkill(skill, triggerSkill) {
+            const rate = skill.DamageRate;
+            this._damageRate = isFinite(rate) ? rate : null;
             if (skill.ItemId > 0) {
                 this.setItem(skill.ItemId);
                 return;
@@ -354,6 +537,11 @@
             this.removeCounterState(target.result());
         }
 
+        makeDamageValue(target, critical) {
+            const value = super.makeDamageValue(target, critical);
+            return this._damageRate !== null ? Math.floor(value * this._damageRate / 100) : value;
+        }
+
         removeCounterState(result) {
             const stateId = this._counter.EraseState;
             if (!stateId) {
@@ -372,10 +560,69 @@
         isCounter() {
             return true;
         }
+
+        confusionTarget() {
+            if (this.isForUser()) {
+                return this.subject();
+            } else {
+                return super.confusionTarget();
+            }
+        }
     }
 
     Game_Action.prototype.isCounter = function() {
         return false;
+    };
+
+    Game_Action.prototype.getCounter = function() {
+        return {
+            PayCounterCost: true
+        };
+    };
+
+    Game_Action.prototype.isValidAction = function() {
+        return this.isSkill() || this.isItem();
+    };
+
+    Game_Action.prototype.hasElement = function(elementId) {
+        if (this.item().damage.type === 0) {
+            return false;
+        }
+        const skillElementId = this.item().damage.elementId;
+        // Normal attack elementID[-1]
+        if (skillElementId === -1) {
+            return this.subject().attackElements().contains(elementId);
+        } else {
+            return elementId === skillElementId;
+        }
+    };
+
+    const _Game_Action_makeTargets = Game_Action.prototype.makeTargets;
+    Game_Action.prototype.makeTargets = function() {
+        const targets = _Game_Action_makeTargets.apply(this, arguments);
+        return this._savedTargets || targets;
+    };
+
+    Game_Action.prototype.saveTargets = function(targets) {
+        this._savedTargets = targets;
+    };
+
+    Object.defineProperties(Game_BattlerBase.prototype, {
+        lastHpDamage: {
+            get: function () {
+                return this._lastHpDamage || 0;
+            },
+            set: function (value) {
+                this._lastHpDamage = value;
+            },
+            configurable: true
+        }
+    });
+
+    const _Game_Battler_onDamage = Game_Battler.prototype.onDamage;
+    Game_Battler.prototype.onDamage = function(value) {
+        _Game_Battler_onDamage.apply(this, arguments);
+        this.lastHpDamage = value;
     };
 
     const _Game_Battler_performActionStart = Game_Battler.prototype.performActionStart;
@@ -402,19 +649,27 @@
     BattleManager.initMembers = function() {
         _BattleManager_initMembers.apply(this, arguments);
         this._counterQueue = [];
+        $gameParty.members().forEach(member => member.lastHpDamage = 0);
     };
 
     const _BattleManager_invokeNormalAction = BattleManager.invokeNormalAction;
     BattleManager.invokeNormalAction = function(subject, target) {
-        const counterAction = new Game_CounterAction(target);
-        counterAction.setup(this._action, subject);
-        const counter = counterAction.getCounter();
-        if (!counter || counter.CrossCounter) {
+        let counterAction = this.createCounterAction(subject, this._action, target, 'Normal');
+        let counter = counterAction.getCounter();
+        if (!counter) {
             _BattleManager_invokeNormalAction.apply(this, arguments);
+            counterAction = this.createCounterAction(subject, this._action, target, 'CrossCounter');
+            counter = counterAction.getCounter();
         }
         if (counter) {
             this.requestCounterAction(target, subject, counterAction);
         }
+    };
+
+    BattleManager.createCounterAction = function(subject, action, target, type) {
+        const counterAction = new Game_CounterAction(target);
+        counterAction.setup(action, type);
+        return counterAction;
     };
 
     BattleManager.requestCounterAction = function(counterSubject, subject, counterAction) {
@@ -422,6 +677,11 @@
         if (!this.checkCrossCounterCondition(counterSubject.result(), counter)) {
             return;
         }
+        if (param.ConsiderateRepeat &&
+            this._counterQueue.find(queue => queue.subject === counterSubject)) {
+            return;
+        }
+        this.filterInvalidCounter();
         this._counterQueue.push({
             subject: counterSubject,
             target: subject,
@@ -429,20 +689,41 @@
         });
     };
 
+    BattleManager.filterInvalidCounter = function() {
+        this._counterQueue = this._counterQueue.filter(data => data.subject.canMove());
+    };
+
     const _BattleManager_endAction = BattleManager.endAction;
     BattleManager.endAction = function() {
         _BattleManager_endAction.apply(this, arguments);
+        // 行動回数が追加されたバトラーの行動の場合、行動し終わるまでカウンター発動を待機
+        if (this._subject && this._subject !== this._currentActor && !this._counterSubject) {
+            return;
+        }
         const counter = this._counterQueue.shift();
-        if (counter) {
-            this.invokeCounterAction(counter.subject, counter.target, counter.action);
+        if (counter && counter.subject.canMove()) {
+            this.startCounterAction(counter.subject, counter.target, counter.action);
+        } else if (this._counterSubject) {
+            this._counterSubject = null;
+            this._subject = null;
         }
     };
 
-    BattleManager.invokeCounterAction = function(subject, target, counterAction) {
-        if (!subject.canMove()) {
+    const _BattleManager_processTurn = BattleManager.processTurn;
+    BattleManager.processTurn = function() {
+        if (this._subject === this._counterSubject) {
+            this.endAction();
             return;
         }
+        _BattleManager_processTurn.apply(this, arguments);
+        if (!this._subject && this._counterSubject) {
+            this._subject = this._counterSubject;
+        }
+    };
+
+    BattleManager.startCounterAction = function(subject, target, counterAction) {
         this._phase = "action";
+        this._counterSubject = subject;
         this._subject = subject;
         this._action = counterAction;
         this._targets = counterAction.makeTargets();
@@ -457,7 +738,7 @@
     };
 
     BattleManager.checkCrossCounterCondition = function(result, counter) {
-        if (counter.CrossCounter) {
+        if (counter.CounterType === 'CrossCounter') {
             if (!result.isHit() && counter.CrossCounterCondition === 1) {
                 return false;
             }
@@ -473,6 +754,9 @@
      * 反撃の演出とメッセージ表示
      */
     Window_BattleLog.prototype.displaySkillCounter = function(subject, counter) {
+        if (counter.DefaultMessage) {
+            this.displayCounter(subject);
+        }
         if (counter.Message) {
             this.push("addText", counter.Message.format(subject.name()));
         }
@@ -496,5 +780,41 @@
 
     Window_BattleLog.prototype.waitForAnimation = function() {
         this.setWaitMode('animation');
+    };
+
+    const _BattleManager_startAction = BattleManager.startAction;
+    BattleManager.startAction = function() {
+        const subject = this._subject;
+        const action = subject.currentAction();
+        const targets = action.makeTargets();
+        action.saveTargets(targets);
+        let intercepted = false;
+        targets.forEach(target => {
+            const counterAction = this.createCounterAction(subject, action, target, 'Interceptor');
+            const counter = counterAction.getCounter();
+            if (counter) {
+                this.requestCounterAction(target, subject, counterAction);
+                intercepted = true;
+            }
+        });
+        if (intercepted) {
+            // インターセプトされた行動は、カウンターアクション扱いで実行される
+            this._counterQueue.push({
+                subject: subject,
+                target: null,
+                action: action
+            });
+            this._logWindow.startInterceptedAction(subject, action);
+        } else {
+            _BattleManager_startAction.apply(this, arguments);
+        }
+    }
+
+    Window_BattleLog.prototype.startInterceptedAction = function(subject, action) {
+        const item = action.item();
+        this.push("performActionStart", subject, action);
+        this.push("waitForMovement");
+        this.push("performAction", subject, action);
+        this.displayAction(subject, item);
     };
 })();

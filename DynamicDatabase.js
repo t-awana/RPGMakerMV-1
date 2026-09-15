@@ -6,6 +6,12 @@
 // http://opensource.org/licenses/mit-license.php
 // ----------------------------------------------------------------------------
 // Version
+// 2.1.4 2025/01/20 2.1.3の修正に一部対応不備があったので修正
+// 2.1.3 2025/01/19 二つ名などに\n[n]を使うとゲーム開始時にエラーになる問題を修正
+// 2.1.2 2024/03/12 敵キャラの最大HPに動的データを適用しているとき、戦闘テスト時にHPが最大値にならない問題を修正
+// 2.1.1 2022/07/22 ヘルプに注釈を追記
+// 2.1.0 2022/07/18 用語に制御文字を使える機能を追加
+// 2.0.1 2021/06/09 ドロップアイテムと出現率のタグが逆だったので修正
 // 2.0.0 2020/09/25 MZ向けにリファクタリング。ヘルプを修正
 // 1.3.2 2019/08/25 1.3.1の修正方法に誤りがあったため再度修正
 // 1.3.1 2019/06/02 後方互換性を考慮しデータベースの元の値を参照する際「元の値」という変数名を使えるようになりました。
@@ -38,6 +44,12 @@
  * @base PluginCommonBase
  * @author トリアコンタン
  *
+ * @param dynamicTerm
+ * @text 動的用語
+ * @desc データベースの用語にも制御文字が使えるようになります。
+ * @default false
+ * @type boolean
+ *
  * @help データベースの各項目を動的な値に変更するプラグインです。
  * 変数やJavaScript計算式を使ってより高度なデータベースを構築できます。
  *
@@ -62,6 +74,10 @@
  *
  * 計算式中では不等号「>」は使えません。
  * 「<」で代用してください。
+ *
+ * 特徴や効果を動的データベース化したい場合は
+ * メモ欄だけでなく実際の特徴や効果も定義してください。
+ * （設定値はメモ欄が優先されるので枠だけあればOK）
  *
  * 公式プラグイン『TextScriptBase.js』を有効にしていると
  * 以下の制御文字が追加で使えます。詳細は同プラグインのヘルプを確認してください。
@@ -89,8 +105,10 @@
  *  このプラグインはもうあなたのものです。
  */
 
-(function() {
+(()=> {
     'use strict';
+    const script = document.currentScript;
+    const param = PluginManagerEx.createParameter(script);
 
     //=============================================================================
     // Scene_Boot
@@ -100,15 +118,24 @@
     Scene_Boot.prototype.start = function() {
         _Scene_Boot_start.call(this);
         DynamicDatabaseManager.makeDynamicDatabase();
+        if (DataManager.isBattleTest()) {
+            $gameTroop.members().forEach(enemy => enemy.recoverAll());
+        }
     };
 
     //=============================================================================
     // Game_Actor
     //  アクター名、二つ名、プロフィールについて変更されるまではDBから再取得するよう修正
     //=============================================================================
+    let processSetupActorIdList = [];
     const _Game_Actor_setup = Game_Actor.prototype.setup;
     Game_Actor.prototype.setup = function(actorId) {
+        if (processSetupActorIdList[actorId]) {
+            return;
+        }
+        processSetupActorIdList[actorId] = true;
         _Game_Actor_setup.apply(this, arguments);
+        processSetupActorIdList[actorId] = false;
         this.__nickname = null;
         this.__profile = null;
         this.__name = null;
@@ -290,9 +317,9 @@
             this._columnMapperEnemies['actions_%1_skillId'.format(i)] = '行動%1_スキル'.format(i + 1);
         });
         this._times(3, i => {
-            this._columnMapperEnemies['dropItems_%1_denominator'.format(i)] = 'ドロップアイテム%1_ドロップアイテム'.format(i + 1);
+            this._columnMapperEnemies['dropItems_%1_kind'.format(i)] = 'ドロップアイテム%1_ドロップアイテム'.format(i + 1);
             this._columnMapperEnemies['dropItems_%1_dataId'.format(i)] = 'ドロップアイテム%1_ドロップアイテムID'.format(i + 1);
-            this._columnMapperEnemies['dropItems_%1_kind'.format(i)] = 'ドロップアイテム%1_出現率'.format(i + 1);
+            this._columnMapperEnemies['dropItems_%1_denominator'.format(i)] = 'ドロップアイテム%1_出現率'.format(i + 1);
         });
     };
 
@@ -374,4 +401,22 @@
             }
         });
     };
+
+    if (param.dynamicTerm) {
+        TextManager.basic = function(basicId) {
+            return PluginManagerEx.convertEscapeCharacters($dataSystem.terms.basic[basicId] || '');
+        };
+
+        TextManager.param = function(paramId) {
+            return PluginManagerEx.convertEscapeCharacters($dataSystem.terms.params[paramId] || '');
+        };
+
+        TextManager.command = function(commandId) {
+            return PluginManagerEx.convertEscapeCharacters($dataSystem.terms.commands[commandId] || '');
+        };
+
+        TextManager.message = function(messageId) {
+            return PluginManagerEx.convertEscapeCharacters($dataSystem.terms.messages[messageId] || '');
+        };
+    }
 })();

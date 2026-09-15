@@ -6,6 +6,18 @@
  http://opensource.org/licenses/mit-license.php
 ----------------------------------------------------------------------------
  Version
+ 1.5.1 2025/09/13 フキダシウィンドウの右端、下端の基準をUIサイズではなく画面サイズに変更
+ 1.5.0 2025/02/17 コアスクリプトv1.9.0に対応
+ 1.4.4 2024/12/28 余白設定がフキダシウィンドウを無効にしたときも反映されていた問題を修正
+ 1.4.3 2024/10/25 英語版ヘルプのプラグインコマンドのキャラクターID下限を削除
+ 1.4.2 2023/12/27 フキダシ位置の自動設定に関する説明を追記
+ 1.4.1 2023/12/20 可能な範囲でNovelMessageMZ.jsと併用できるよう修正
+ 1.4.0 2022/12/08 フキダシウィンドウプラグインの横幅に拘わらず、左側の座標を固定する機能を追加
+ 1.3.1 2022/10/29 MPP_ChoiceEX.jsと併用するとマップ表示時にエラーになる問題に対処
+ 1.3.0 2022/09/21 戦闘画面でバトラーを指定したフキダシウィンドウが表示できる機能を追加
+ 1.2.1 2022/06/12 lowerLimitXなどいくつかのパラメータが機能していなかった問題を修正
+ 1.2.0 2021/12/06 フォロワーのフキダシ表示機能をMV版から流用して追加
+ 1.1.3 2021/11/04 テール画像を指定した場合、特定の手順を踏んで選択肢の表示などを実行するとエラーになる問題を修正
  1.1.2 2021/01/17 パラメータでテール画像を指定していない状態でプラグインコマンドからテール画像を変更しても正しく反映されない問題を修正
  1.1.1 2020/11/30 英訳版ヘルプをご提供いただいて追加
  1.1.0 2020/10/17 テール画像を変更できるプラグインコマンドを追加
@@ -161,6 +173,11 @@
  * @min -2000
  * @max 2000
  *
+ * @param FixedLeftX
+ * @desc
+ * @default 0
+ * @type number
+ *
  * @command POPUP_VALID
  * @text Enable balloon window
  * @desc Activate the speech balloon with the specified ID.
@@ -170,7 +187,6 @@
  * @desc balloon window Subject ID.[-1]Player [0]this Event [1..]The specified ID event
  * @default 0
  * @type number
- * @min -1
  *
  * @arg name
  * @text Event Name
@@ -436,13 +452,13 @@
  *
  * @param lowerLimitY
  * @text 下限Y座標
- * @desc フキダシウィンドウの下限Y座標です。
+ * @desc フキダシウィンドウの下限Y座標です。このパラメータを使用する場合、パラメータ『画面内に収める』を有効にします。
  * @default 0
  * @type number
  *
  * @param upperLimitY
  * @text 上限Y座標
- * @desc フキダシウィンドウの上限Y座標です。
+ * @desc フキダシウィンドウの上限Y座標です。このパラメータを使用する場合、パラメータ『画面内に収める』を有効にします。
  * @default 0
  * @type number
  *
@@ -461,16 +477,22 @@
  * @min -2000
  * @max 2000
  *
+ * @param FixedLeftX
+ * @text 固定左X座標
+ * @desc 指定した場合フキダシウィンドウの横幅に拘わらず、ウィンドウの左端が固定されます。
+ * @default 0
+ * @type number
+ *
  * @command POPUP_VALID
  * @text フキダシ有効化
  * @desc 指定したIDでフキダシを有効化します。
  *
  * @arg id
  * @text キャラクターID
- * @desc フキダシ対象IDです。[-1]プレイヤー [0]このイベント [1..]指定したIDのイベント
+ * @desc フキダシ対象IDです。[-1]プレイヤー [0]このイベント [1..]指定したIDのイベント [-2..] フォロワー
  * @default 0
  * @type number
- * @min -1
+ * @min -9999
  *
  * @arg name
  * @text イベント名称
@@ -480,7 +502,7 @@
  *
  * @arg windowPosition
  * @text ウィンドウ位置
- * @desc フキダシのウィンドウ位置です。
+ * @desc ウィンドウ位置です。自動ではデフォルト上側表示しますが、画面外にウィンドウがはみ出す場合、下側表示となります。
  * @default auto
  * @type select
  * @option 自働
@@ -513,6 +535,28 @@
  * @type number
  * @min -2000
  * @max 2000
+ *
+ * @command BATTLE_POPUP_VALID
+ * @text 戦闘用フキダシ有効化
+ * @desc バトラーを指定してフキダシを有効化します。アクターIDかパーティ、敵キャラインデックスのいずれかを指定します。
+ *
+ * @arg actorId
+ * @text アクターID
+ * @desc フキダシ表示対象となるアクターです。指定した場合、最優先で参照されます。
+ * @default 0
+ * @type actor
+ *
+ * @arg partyIndex
+ * @text パーティインデックス
+ * @desc フキダシ表示対象となるパーティインデックス(1...)です。
+ * @default 0
+ * @type number
+ *
+ * @arg enemyIndex
+ * @text 敵キャラインデックス
+ * @desc フキダシ表示対象となる敵キャラインデックス(1...)です。
+ * @default 0
+ * @type number
  *
  * @command POPUP_WINDOW_SETTING
  * @text フキダシウィンドウ表示設定
@@ -624,6 +668,308 @@
  *  このプラグインはもうあなたのものです。
  */
 
+/*:zh
+ * @plugindesc 对话气泡窗口插件
+ * @author triacontane
+ * @target MZ
+ * @base PluginCommonBase
+ * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/MessageWindowPopup.js
+ *
+ * @param FontSize
+ * @text 字体大小
+ * @desc 气泡窗口的默认字体大小。默认窗口字体大小：28
+ * @default 22
+ * @type number
+ *
+ * @param Padding
+ * @text 边距
+ * @desc 气泡窗口的边距大小。默认窗口边距：18
+ * @default 10
+ * @type number
+ *
+ * @param AutoPopup
+ * @text 自动设置
+ * @desc 当事件启动时，自动将气泡的目标设置为启动的事件。关闭时，则使用普通消息窗口。
+ * @default true
+ * @type boolean
+ *
+ * @param FaceScale
+ * @text 头像缩放倍率
+ * @desc 在气泡窗口中显示头像的缩放比例（1-100%）
+ * @default 75
+ * @type number
+ *
+ * @param WindowLinkage
+ * @text 窗口联动
+ * @desc 将选项窗口和数值输入窗口与气泡窗口进行联动。
+ * @default true
+ * @type boolean
+ *
+ * @param BetweenLines
+ * @text 行间距
+ * @desc 设置行与行之间的像素间距。
+ * @default 4
+ * @type number
+ *
+ * @param FontSizeRange
+ * @text 字体增减范围
+ * @desc 使用控制字符“\{”或“\}”时，字体大小增减的范围。默认值为12。
+ * @default 12
+ * @type number
+ *
+ * @param FontUpperLimit
+ * @text 字体大小上限
+ * @desc 使用控制字符“\{”或“\}”时的字体最大值。默认96。
+ * @default 96
+ * @type number
+ *
+ * @param FontLowerLimit
+ * @text 字体大小下限
+ * @desc 使用控制字符“\{”或“\}”时的字体最小值。默认24。
+ * @default 24
+ * @type number
+ *
+ * @param InnerScreen
+ * @text 适应屏幕
+ * @desc 调整位置，使气泡窗口在水平方向和垂直方向上都不会超出屏幕。
+ * @default false
+ * @type boolean
+ *
+ * @param ShakeSpeed
+ * @text 震动速度
+ * @desc 气泡窗口震动的速度。
+ * @default 5
+ * @type number
+ *
+ * @param ShakeDuration
+ * @text 震动时间
+ * @desc 窗口震动的帧数，设为0表示持续震动。
+ * @default 60
+ * @type number
+ *
+ * @param NoUseTail
+ * @text 不使用尾巴
+ * @desc 禁用气泡的尾巴显示功能，将在默认位置显示。
+ * @default false
+ * @type boolean
+ *
+ * @param MinWidthVariableId
+ * @text 最小宽度变量ID
+ * @desc 指定的变量的值将作为气泡窗口的最小宽度（像素）。
+ * @default 0
+ * @type variable
+ *
+ * @param MinHeightVariableId
+ * @text 最小高度变量ID
+ * @desc 指定的变量的值将作为气泡窗口的最小高度（像素）。
+ * @default 0
+ * @type variable
+ *
+ * @param lowerLimitX
+ * @text X坐标下限
+ * @desc 气泡窗口的X坐标下限。
+ * @default 0
+ * @type number
+ *
+ * @param upperLimitX
+ * @text X坐标上限
+ * @desc 气泡窗口的X坐标上限。
+ * @default 0
+ * @type number
+ *
+ * @param lowerLimitY
+ * @text Y坐标下限
+ * @desc 气泡窗口的Y坐标下限。
+ * @default 0
+ * @type number
+ *
+ * @param upperLimitY
+ * @text Y坐标上限
+ * @desc 气泡窗口的Y坐标上限。
+ * @default 0
+ * @type number
+ *
+ * @param tailImage
+ * @text 尾巴图像
+ * @desc 指定要使用的尾巴图像（系统图像）。
+ * @default
+ * @dir img/system/
+ * @type file
+ *
+ * @param tailImageAdjustY
+ * @text 尾巴图像Y坐标修正
+ * @desc 尾巴图像的Y坐标修正值。
+ * @default 0
+ * @type number
+ * @min -2000
+ * @max 2000
+ *
+ * @param FixedLeftX
+ * @desc
+ * @default 0
+ * @type number
+ *
+ * @command POPUP_VALID
+ * @text 启用气泡窗口
+ * @desc 激活指定ID的气泡窗口。
+ *
+ * @arg id
+ * @text 角色ID
+ * @desc 气泡目标ID。[ -1 ] 玩家 [ 0 ] 本事件 [ 1.. ] 指定事件ID
+ * @default 0
+ * @type number
+ *
+ * @arg name
+ * @text 事件名称
+ * @desc 指定气泡目标的事件名称（如果通过名称指定目标）。
+ * @default
+ * @type string
+ *
+ * @arg windowPosition
+ * @text 窗口位置
+ * @desc 气泡窗口的位置。
+ * @default auto
+ * @type select
+ * @option 自动
+ * @value auto
+ * @option 角色上方
+ * @value upper
+ * @option 角色下方
+ * @value lower
+ *
+ * @command POPUP_INVALID
+ * @text 禁用气泡窗口
+ * @desc 关闭气泡窗口并恢复普通窗口显示。
+ *
+ * @command FREE_POPUP_VALID
+ * @text 启用自由气泡窗口
+ * @desc 在指定坐标启用气泡窗口。
+ *
+ * @arg x
+ * @text X坐标
+ * @desc 气泡窗口的X坐标。
+ * @default 0
+ * @type number
+ * @min -2000
+ * @max 2000
+ *
+ * @arg y
+ * @text Y坐标
+ * @desc 气泡窗口的Y坐标。
+ * @default 0
+ * @type number
+ * @min -2000
+ * @max 2000
+ *
+ * @command POPUP_WINDOW_SETTING
+ * @text 气泡窗口显示设置
+ * @desc 修改气泡窗口的显示设置。
+ *
+ * @arg windowPosition
+ * @text 窗口位置
+ * @desc 气泡窗口的位置。
+ * @default none
+ * @type select
+ * @option 不更改
+ * @value none
+ * @option 自动
+ * @value auto
+ * @option 角色上方
+ * @value upper
+ * @option 角色下方
+ * @value lower
+ *
+ * @arg skin
+ * @text 窗口皮肤
+ * @desc 如果要更改气泡窗口皮肤，请指定。
+ * @default
+ * @dir img/system/
+ * @type file
+ *
+ * @command SUB_WINDOW_SETTING
+ * @text 子窗口显示设置
+ * @desc 设置子窗口的显示方式。
+ *
+ * @arg type
+ * @text 显示类型
+ * @desc 子窗口的显示方式。
+ * @default 0
+ * @type select
+ * @option 普通
+ * @value 0
+ * @option 玩家上方
+ * @value 1
+ * @option 右侧
+ * @value 3
+ *
+ * @command POPUP_ADJUST_POSITION
+ * @text 气泡窗口位置调整
+ * @desc 调整气泡窗口的显示坐标。
+ *
+ * @arg x
+ * @text X坐标
+ * @desc 相对于原始坐标的调整值。
+ * @default 0
+ * @type number
+ * @min -2000
+ * @max 2000
+ *
+ * @arg y
+ * @text Y坐标
+ * @desc 相对于原始坐标的调整值。
+ * @default 0
+ * @type number
+ * @min -2000
+ * @max 2000
+ *
+ * @command POPUP_ADJUST_SIZE
+ * @text 气泡窗口大小调整
+ * @desc 调整气泡窗口的显示大小。
+ *
+ * @arg width
+ * @text 宽度
+ * @desc 相对于原始大小的调整值。
+ * @default 0
+ * @type number
+ * @min -2000
+ * @max 2000
+ *
+ * @arg height
+ * @text 高度
+ * @desc 相对于原始大小的调整值。
+ * @default 0
+ * @type number
+ * @min -2000
+ * @max 2000
+ *
+ * @command CHANGE_TAIL
+ * @text 更改尾巴图像
+ * @desc 将尾巴图像更改为其他图像。
+ *
+ * @arg tailImage
+ * @text 尾巴图像
+ * @desc 指定使用的尾巴图像（系统图像）。如果留空，将恢复为参数中指定的尾巴图像。
+ * @default
+ * @dir img/system/
+ * @type file
+ *
+ * @help
+ * 本插件将消息窗口修改为气泡窗口，显示在指定角色的头顶上方。
+ * 可以通过插件命令进行各种设置。
+ *
+ * - 可用控制字符
+ * \sh[5]  # 以强度[5]震动气泡窗口。
+ *
+ * 使用本插件需要基础插件“PluginCommonBase.js”。
+ * “PluginCommonBase.js” 位于 RPG Maker MZ 安装目录：
+ * dlc/BasicResources/plugins/official
+ *
+ * 使用协议：
+ *  你可以自由修改或再分发本插件，无需获得许可。
+ *  不限制使用形式（包括成人或商业用途）。
+ *  本插件完全归你所有。
+ */
+
 (() => {
     'use strict';
     const script = document.currentScript;
@@ -683,6 +1029,16 @@
         $gameSystem.setTailImage(args.tailImage);
     });
 
+    PluginManagerEx.registerCommand(script, 'BATTLE_POPUP_VALID', function(args) {
+        if (args.actorId > 0) {
+            $gameSystem.setMessagePopupBattler($gameActors.actor(args.actorId));
+        } else if (args.partyIndex > 0) {
+            $gameSystem.setMessagePopupBattler($gameParty.members()[args.partyIndex - 1]);
+        } else if (args.enemyIndex > 0) {
+            $gameSystem.setMessagePopupBattler($gameTroop.members()[args.enemyIndex - 1]);
+        }
+    });
+
     Game_Interpreter.prototype.setPopupWindowPosition = function(windowPosition, characterId) {
         switch (windowPosition) {
             case 'upper':
@@ -699,7 +1055,7 @@
     const _Game_Interpreter_terminate    = Game_Interpreter.prototype.terminate;
     Game_Interpreter.prototype.terminate = function() {
         _Game_Interpreter_terminate.apply(this, arguments);
-        if (this._depth === 0 && $gameMap.isInterpreterOf(this)) {
+        if (this._depth === 0 && ($gameMap.isInterpreterOf(this) || $gameParty.inBattle())) {
             $gameSystem.clearMessagePopup();
         }
     };
@@ -717,6 +1073,8 @@
         this._messagePopupAdjustPosition    = null;
         this._messagePopupWindowSkin        = null;
         this._messagePopupSubWindowPosition = 0;
+        this._messagePopupEnemyIndex = null;
+        this._messagePopupActorId = null;
     };
 
     Game_System.prototype.initMessagePositionEvents = function() {
@@ -746,9 +1104,39 @@
         this._messagePopupCharacterId = id;
     };
 
+    Game_System.prototype.setMessagePopupBattler = function(battler) {
+        if (!battler) {
+            this.clearBattleMessagePopup();
+            return;
+        }
+        if (battler.isActor()) {
+            this._messagePopupActorId = battler.actorId();
+            this._messagePopupEnemyIndex = null;
+        } else {
+            this._messagePopupEnemyIndex = battler.index();
+            this._messagePopupActorId = null;
+        }
+    };
+
+    Game_System.prototype.getMessagePopupBattler = function() {
+        if (this._messagePopupActorId > 0) {
+            return $gameActors.actor(this._messagePopupActorId);
+        } else if (this._messagePopupEnemyIndex >= 0) {
+            return $gameTroop.members()[this._messagePopupEnemyIndex];
+        } else {
+            return null;
+        }
+    };
+
+    Game_System.prototype.clearBattleMessagePopup = function() {
+        this._messagePopupEnemyIndex = null;
+        this._messagePopupActorId = null;
+    };
+
     Game_System.prototype.clearMessagePopup = function() {
         this._messagePopupCharacterId    = 0;
         this._messagePopupPositionEvents = [];
+        this.clearBattleMessagePopup();
     };
 
     Game_System.prototype.setMessagePopupFree = function(x, y) {
@@ -898,6 +1286,28 @@
     };
 
     //=============================================================================
+    // Game_BattlerBase
+    //  戦闘画面でフキダシウィンドウを表示するための設定
+    //=============================================================================
+    Game_BattlerBase.prototype.setRealScreenPosition = function(x, y, height) {
+        this._realScreenX = x;
+        this._realScreenY = y;
+        this._imageHeight = height;
+    };
+
+    Game_BattlerBase.prototype.getRealScreenX = function() {
+        return this._realScreenX;
+    };
+
+    Game_BattlerBase.prototype.getRealScreenY = function() {
+        return this._realScreenY;
+    };
+
+    Game_BattlerBase.prototype.getHeightForPopup = function() {
+        return this._imageHeight;
+    };
+
+    //=============================================================================
     // Game_Screen
     //  画面座標をズームを考慮した座標に変換します。
     //=============================================================================
@@ -944,6 +1354,15 @@
         }
     };
 
+    const _Sprite_Battler_updatePosition = Sprite_Battler.prototype.updatePosition;
+    Sprite_Battler.prototype.updatePosition = function() {
+        _Sprite_Battler_updatePosition.apply(this, arguments);
+        if (this._battler) {
+            const target = this.mainSprite();
+            this._battler.setRealScreenPosition(this.x, this.y, target?.height || 0);
+        }
+    };
+
     //=============================================================================
     // Window_Base
     //  共通処理を定義します。
@@ -959,6 +1378,9 @@
     };
 
     Window_Base.prototype.setPauseSignToTail = function(lowerFlg) {
+    };
+
+    Window_Message.prototype.setPauseSignToTail = function(lowerFlg) {
         if (lowerFlg) {
             this._pauseSignSprite.rotation = 180 * Math.PI / 180;
             this._pauseSignSprite.y        = 12;
@@ -973,6 +1395,9 @@
     };
 
     Window_Base.prototype.setPauseSignImageToTail = function(lowerFlg) {
+    };
+
+    Window_Message.prototype.setPauseSignImageToTail = function(lowerFlg) {
         this._pauseSignSprite.visible = false;
         if (lowerFlg) {
             this._messageTailImage.rotation = 180 * Math.PI / 180;
@@ -1037,15 +1462,24 @@
 
     Window_Base.prototype.setPopupBasePosition = function() {
         const pos = $gameSystem.getPopupAdjustPosition();
-        this.x    = this.getPopupBaseX() - this.width / 2 + (pos ? pos[0] : 0) - 4;
+        this.x    = this.getPopupBaseX() - this.findPopupLeftX() + (pos ? pos[0] : 0) - 4;
         this.y    = this.getPopupBaseY() - this.height - this.getHeightForPopup() + (pos ? pos[1] : 0);
+    };
+
+    Window_Base.prototype.findPopupLeftX = function() {
+        return param.FixedLeftX || this.width / 2;
     };
 
     const _Window_Base_updatePadding    = Window_Base.prototype.updatePadding;
     Window_Base.prototype.updatePadding = function() {
         _Window_Base_updatePadding.apply(this, arguments);
         if (this.isPopup() && param.Padding) {
+            this._prevPadding = this.padding;
             this.padding = param.Padding;
+        } else if (this._prevPadding !== undefined) {
+            this.padding = this._prevPadding;
+            this._prevPadding = undefined;
+
         }
     };
 
@@ -1088,7 +1522,7 @@
             this.adjustPopupPositionY();
         }
         const adjustResultX = this.adjustPopupPositionX();
-        const tailX         = this._width / 2 + adjustResultX;
+        const tailX         = this.findPopupLeftX() + adjustResultX;
         if (!this.isUsePauseSignTextEnd()) {
             this._pauseSignSprite.x = tailX;
         }
@@ -1104,8 +1538,8 @@
 
     Window_Base.prototype.adjustPopupPositionX = function() {
         let deltaX = 0;
-        const minX = param.LowerLimitX || 0;
-        const maxX = param.UpperLimitX || Graphics.boxWidth;
+        const minX = param.lowerLimitX || 0;
+        const maxX = param.upperLimitX || Graphics.width;
         if (this.x < minX) {
             deltaX = this.x - minX;
             this.x = minX;
@@ -1119,11 +1553,11 @@
 
     Window_Base.prototype.adjustPopupPositionY = function() {
         let minY = (this._pauseSignLower ? this._pauseSignSprite.height / 2 : 0);
-        minY += param.LowerLimitY || 0;
+        minY += param.lowerLimitY || 0;
         if (this.y < minY) {
             this.y = minY;
         }
-        const maxY = (param.UpperLimitY || Graphics.boxHeight) - this._pauseSignSprite.height / 2;
+        const maxY = (param.upperLimitY || Graphics.height) - this._pauseSignSprite.height / 2;
         if (this.y + this.height > maxY) {
             this.y = maxY - this.height;
         }
@@ -1233,8 +1667,12 @@
     // ImageManager
     //  ポップアップ用のフェイスグラフィックサイズを設定します。
     //=============================================================================
-    ImageManager.popUpfaceWidth  = Math.floor(ImageManager.faceWidth * param.FaceScale / 100);
-    ImageManager.popUpfaceHeight = Math.floor(ImageManager.faceHeight * param.FaceScale / 100);
+    const _Scene_Boot_onDatabaseLoaded = Scene_Boot.prototype.onDatabaseLoaded;
+    Scene_Boot.prototype.onDatabaseLoaded = function() {
+        _Scene_Boot_onDatabaseLoaded.apply(this, arguments);
+        ImageManager.popUpfaceWidth  = Math.floor(ImageManager.faceWidth * param.FaceScale / 100);
+        ImageManager.popUpfaceHeight = Math.floor(ImageManager.faceHeight * param.FaceScale / 100);
+    };
 
     //=============================================================================
     // Window_Message
@@ -1308,9 +1746,15 @@
 
     Window_Message.prototype.updateTargetCharacterId = function() {
         this._targetCharacterId = $gameSystem.getMessagePopupId();
+        if ($gameParty.inBattle()) {
+            this._targetBattler = $gameSystem.getMessagePopupBattler();
+        }
     };
 
     Window_Message.prototype.getPopupTargetCharacter = function() {
+        if (this._targetBattler) {
+            return this._targetBattler;
+        }
         const id = this._targetCharacterId;
         if (id < -1) {
             return $gamePlayer.followers().follower((id * -1) - 2);
@@ -1348,7 +1792,7 @@
     Window_Message.prototype.updatePlacement = function() {
         this.x = this._defaultRect.x;
         _Window_Message_updatePlacement.apply(this, arguments);
-        this._nameBoxWindow.updatePlacement();
+        this._nameBoxWindow?.updatePlacement();
         if (!this.isPopup()) {
             return;
         }
@@ -1403,7 +1847,7 @@
 
     Window_Message.prototype.resetLayout = function() {
         if (this.getPopupTargetCharacter()) {
-            this.processVirtual();
+            this.resizeForPopup();
         } else {
             this.width  = this.windowWidth();
             this.height = this.windowHeight();
@@ -1411,9 +1855,10 @@
         }
         this.updatePlacement();
         this.updateBackground();
+        this.updatePadding();
     };
 
-    Window_Message.prototype.processVirtual = function() {
+    Window_Message.prototype.resizeForPopup = function() {
         this.updatePadding();
         const virtual = this.createVirtualTextState();
         let width    = virtual.outputWidth + this.padding * 2;
@@ -1430,6 +1875,11 @@
         }
         this.width  = Math.max(width, this.getMinimumWidth());
         this.height = Math.max(height, this.getMinimumHeight());
+        // for NovelMessageMZ.js
+        if (this._windowRect) {
+            this._windowRect.width = this.width;
+            this._windowRect.height = this.height;
+        }
         this.resetFontSettings();
     };
 

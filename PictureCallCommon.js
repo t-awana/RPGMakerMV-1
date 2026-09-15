@@ -6,6 +6,19 @@
 // http://opensource.org/licenses/mit-license.php
 // ----------------------------------------------------------------------------
 // Version
+// 1.6.4 2025/05/20 1.6.3の修正で一部不十分な点があり修正
+// 1.6.3 2025/04/29 スプライトシートなどフレーム設定されたピクチャのタッチに対応
+// 1.6.2 2024/12/10 1.6.1の修正で拡大率をマイナスに設定したピクチャのタッチイベントが発生しなくなっていた問題を修正
+// 1.6.1 2024/06/04 ボタンピクチャを極めて小さい拡大率（負の値への移動も含む）で表示しようとするとエラーになる場合がある問題を修正
+// 1.6.0 2023/11/16 プラグインコマンドを「ピクチャの操作拡張プラグイン」が提供する一括指定機能に対応させました。
+// 1.5.1 2023/06/12 ピクチャイベント解除時に指定した番号以外の番号のピクチャイベントも一緒に解除される可能性がある問題を修正
+// 1.5.0 2023/04/22 ピクチャイベントを発生させる際、透過部分に反応するかどうかを設定できる機能を追加
+// 1.4.0 2022/10/22 DTextPicture.jsと組み合わせたとき、フレームウィンドウをクリックイベントの範囲に含めるよう変更
+// 1.3.1 2022/05/19 ヘルプ微修正
+// 1.3.0 2022/04/14 ピクチャクリック時に変数を操作する機能および任意スクリプトを実行する機能を追加
+// 1.2.2 2021/11/07 異なるピクチャのトリガーを同一フレームで同時に満たした場合、すべてのタッチ処理が実行されるよう修正
+// 1.2.1 2021/10/08 トリガー種別がマウスが重なった場合のとき無効スイッチ中に条件を満たしていると、無効スイッチがOFFになった瞬間にイベントが発生してしまう問題を修正
+// 1.2.0 2021/05/20 APNGピクチャプラグインと組み合わせたときにAPNGピクチャをボタン化できるよう修正（ただし透過色は考慮されない）
 // 1.1.2 2021/04/08 トリガー「マウスをピクチャ内で移動した場合」がマウスを押していないと反応しない問題を修正
 // 1.1.1 2020/12/21 スクリプト$gameScreen.showPictureを使って未キャッシュのピクチャを表示しようとすると画像が表示されなくなる問題を修正
 //                  セーブデータロード時にエラーになる問題を修正
@@ -76,6 +89,44 @@
  * @default 0
  * @type switch
  *
+ * @arg variableId
+ * @text 変数番号
+ * @desc イベント発生時に値が加減される変数です。
+ * @default 0
+ * @type variable
+ *
+ * @arg operationType
+ * @parent variableId
+ * @text 操作種別
+ * @desc イベント発生時に指定した変数の操作種別です。
+ * @default 0
+ * @type select
+ * @option 代入
+ * @value 0
+ * @option 加算
+ * @value 1
+ * @option 減算
+ * @value 2
+ * @option 乗算
+ * @value 3
+ * @option 除算
+ * @value 4
+ * @option 剰余
+ * @value 5
+ *
+ * @arg operand
+ * @parent variableId
+ * @text オペランド
+ * @desc イベント発生時に指定した変数の操作値です。
+ * @default 0
+ * @type number
+ * @min -99999999
+ *
+ * @arg script
+ * @text スクリプト
+ * @desc イベント発生時に実行されるスクリプトです。
+ * @type multiline_string
+ *
  * @arg buttonBind
  * @text ボタンバインド
  * @desc イベント発生時に押したことになるボタンです。
@@ -130,6 +181,22 @@
  * @default 0
  * @type switch
  *
+ * @command SET_PICTURE_PREFERENCE
+ * @text ピクチャ設定
+ * @desc　ピクチャイベントの設定を変更します。
+ *
+ * @arg pictureId
+ * @text ピクチャ番号
+ * @desc 変更対象のピクチャ番号です。
+ * @default 1
+ * @type number
+ *
+ * @arg includeOpacityZero
+ * @text 透過部分も含む
+ * @desc ピクチャの透明部分にも反応するかどうかです。
+ * @default false
+ * @type boolean
+ *
  * @command REMOVE_PICTURE_EVENT
  * @text ピクチャイベント解除
  * @desc 登録したピクチャイベントを解除します。
@@ -146,6 +213,8 @@
  * スイッチ制御ができます。（これをピクチャイベントと呼びます）
  * 一度登録したピクチャイベントはピクチャを消去しても有効です。
  * 解除は専用のプラグインコマンドから可能です。
+ *
+ * 各マウス操作について、ピクチャの透明部分には反応しません。
  *
  * ピクチャイベントはマップ画面でも戦闘画面でも
  * 他のイベントや状況の制限を受けずに速やかに並列実行されます。
@@ -164,11 +233,27 @@
     const param  = PluginManagerEx.createParameter(script);
 
     PluginManagerEx.registerCommand(script, 'ADD_PICTURE_EVENT', args => {
-        $gameScreen.addPictureEvent(args.pictureId, args.triggerType, args);
+        if ($gameScreen.iteratePictures) {
+            $gameScreen.iteratePictures($gameScreen.addPictureEvent, [args.pictureId, args.triggerType, args]);
+        } else {
+            $gameScreen.addPictureEvent(args.pictureId, args.triggerType, args);
+        }
     });
 
     PluginManagerEx.registerCommand(script, 'REMOVE_PICTURE_EVENT', args => {
-        $gameScreen.removePictureEvent(args.pictureId);
+        if ($gameScreen.iteratePictures) {
+            $gameScreen.iteratePictures($gameScreen.removePictureEvent, [args.pictureId]);
+        } else {
+            $gameScreen.removePictureEvent(args.pictureId);
+        }
+    });
+
+    PluginManagerEx.registerCommand(script, 'SET_PICTURE_PREFERENCE', args => {
+        if ($gameScreen.iteratePictures) {
+            $gameScreen.iteratePictures($gameScreen.setPicturePreference, [args.pictureId, args]);
+        } else {
+            $gameScreen.setPicturePreference(args.pictureId, args);
+        }
     });
 
     //=============================================================================
@@ -216,6 +301,16 @@
         return this._pictureEventMap.find(realPictureId, trigger);
     };
 
+    Game_Screen.prototype.setPicturePreference = function(pictureId, param) {
+        const realPictureId = this.realPictureId(pictureId);
+        this._pictureEventMap.setPreference(realPictureId, param);
+    };
+
+    Game_Screen.prototype.getPicturePreference = function(pictureId) {
+        const realPictureId = this.realPictureId(pictureId);
+        return this._pictureEventMap.getPreference(realPictureId);
+    }
+
     Game_Screen.prototype.disConvertPositionX = function(x) {
         const unshiftX = x - this.zoomX() * (1 - this.zoomScale());
         return Math.round(unshiftX / this.zoomScale());
@@ -260,6 +355,7 @@
     class Game_PictureEventMap {
         constructor() {
             this._map = {}
+            this._preference = {};
         }
 
         append(pictureId, trigger, option) {
@@ -275,7 +371,7 @@
         }
 
         removeById(pictureId) {
-            const regExp = new RegExp(`^${pictureId}`);
+            const regExp = new RegExp(`^${pictureId}\:`);
             Object.keys(this._map).forEach(key => {
                 if (key.match(regExp)) {
                     delete this._map[key];
@@ -285,6 +381,14 @@
 
         generateKey(pictureId, trigger) {
             return `${pictureId}:${trigger}`;
+        }
+
+        setPreference(pictureId, option) {
+            this._preference[pictureId] = option;
+        }
+
+        getPreference(pictureId) {
+            return this._preference[pictureId];
         }
     }
     window.Game_PictureEventMap = Game_PictureEventMap;
@@ -305,6 +409,12 @@
         if (this.picture() && this._touch && !$gameSwitches.value(param.InvalidSwitchId)) {
             this._touch.update();
         }
+    };
+
+    const _Spriteset_Base_update = Spriteset_Base.prototype.update;
+    Spriteset_Base.prototype.update = function() {
+        _Spriteset_Base_update.apply(this, arguments);
+        TouchInput.suppressIfNeed();
     };
 
     /**
@@ -333,6 +443,7 @@
             this._outMouse     = false;
             this._wasOnMouse   = false;
             this._flick        = false;
+            this._interpreter  = new Game_Interpreter();
         }
 
         update() {
@@ -347,7 +458,7 @@
             }
             this._handlers.forEach((handler, trigger) => {
                 if (this.isValidTrigger(handler, trigger)) {
-                    const eventData = $gameScreen.findPictureEvent(this._pictureId, trigger);
+                    const eventData = this.findPictureEvent(this._pictureId, trigger);
                     this.fireTouchEvent(eventData, trigger);
                 }
             });
@@ -356,12 +467,14 @@
         updateMouseMove() {
             if (this.isOnPicturePos()) {
                 if (!this._wasOnMouse) {
+                    this._outMouse   = false;
                     this._onMouse    = true;
                     this._wasOnMouse = true;
                 }
             } else if (this._wasOnMouse) {
                 this._outMouse   = true;
                 this._wasOnMouse = false;
+                this._onMouse    = false;
             }
         }
 
@@ -383,13 +496,17 @@
         }
 
         isValidTrigger(handler, trigger) {
-            const eventData = $gameScreen.findPictureEvent(this._pictureId, trigger);
+            const eventData = this.findPictureEvent(this._pictureId, trigger);
             return  eventData && !$gameSwitches.value(eventData.invalidSwitchId) &&
                 handler && handler.call(this);
         }
 
+        findPictureEvent(pictureId, trigger) {
+            return $gameScreen.findPictureEvent(pictureId, trigger);
+        }
+
         fireTouchEvent(eventData, trigger) {
-            TouchInput.suppress();
+            TouchInput.requestSuppress();
             if (trigger === 3) {
                 TouchInput._pressedTime = -60;
             }
@@ -405,6 +522,17 @@
         applyTouchEvent(eventData) {
             if (eventData.switchId) {
                 $gameSwitches.setValue(eventData.switchId, true);
+            }
+            if (eventData.variableId) {
+                this._interpreter.operateVariable(eventData.variableId, eventData.operationType, eventData.operand);
+            }
+            if (eventData.script) {
+                try {
+                    eval(eventData.script);
+                } catch (e) {
+                    console.error('Error Script:' + eventData.script);
+                    PluginManagerEx.throwError(e.message, script);
+                }
             }
             if (eventData.buttonBind) {
                 Input.bindKeyState(eventData.buttonBind);
@@ -426,8 +554,11 @@
             if (!pic.bitmap || !pic.bitmap.isReady() || pic.scale.x === 0 || pic.scale.y === 0) {
                 return false;
             }
-            if (this.isTouchPosInFrameWindow()) {
+            if (this.isTouchPosInFrameWindow(x, y)) {
                 return true;
+            }
+            if (Math.abs(pic.scale.x) < 0.01 || Math.abs(pic.scale.y) < 0.01) {
+                return false;
             }
             const dx  = this.getTouchScreenX(x) - pic.x;
             const dy  = this.getTouchScreenY(y) - pic.y;
@@ -435,14 +566,23 @@
             const cos = Math.cos(-pic.rotation);
             const bx = Math.floor(dx * cos + dy * -sin) / pic.scale.x + pic.anchor.x * pic.width;
             const by = Math.floor(dx * sin + dy * cos) / pic.scale.y + pic.anchor.y * pic.height;
-            return pic.bitmap.getAlphaPixel(bx, by) !== 0;
-        }
-
-        isTouchPosInFrameWindow(x, y) {
-            if (!this._frameWindow) {
+            const preference = $gameScreen.getPicturePreference(this._pictureId);
+            if (pic._apngSprite || preference?.includeOpacityZero) {
+                return bx >= 0 && by >= 0 && bx <= pic.bitmap.width && by <= pic.bitmap.height;
+            }
+            const frame = this._picture._frame;
+            if (bx > frame.width || by > frame.height || bx < 0 || by < 0) {
                 return false;
             }
-            const frame = this._frameWindow;
+            return pic.bitmap.getAlphaPixel(bx + frame.x, by + frame.y) !== 0;
+        }
+
+        // for DTextPicture.js
+        isTouchPosInFrameWindow(x, y) {
+            if (!this._picture._frameWindow) {
+                return false;
+            }
+            const frame = this._picture._frameWindow;
             const sx    = this.getTouchScreenX(x);
             const sy    = this.getTouchScreenY(y);
             return frame.x <= sx && frame.x + frame.width >= sx &&
@@ -502,8 +642,15 @@
         return state;
     };
 
-    TouchInput.suppress = function() {
-        this._currentState = this._createNewState();
+    TouchInput.requestSuppress = function() {
+        this._requestSuppress = true;
+    };
+
+    TouchInput.suppressIfNeed = function() {
+        if (this._requestSuppress) {
+            this._currentState = this._createNewState();
+            this._requestSuppress = false;
+        }
     };
 
     TouchInput.isWheelTriggered = function() {

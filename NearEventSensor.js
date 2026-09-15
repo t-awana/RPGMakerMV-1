@@ -1,11 +1,22 @@
 //=============================================================================
 // NearEventSensor.js
 // ----------------------------------------------------------------------------
-// (C) 2015 Triacontane
+// (C)2015 Triacontane
 // This software is released under the MIT License.
 // http://opensource.org/licenses/mit-license.php
 // ----------------------------------------------------------------------------
 // Version
+// 4.1.0 2025/02/17 パフォーマンスを改善するプラグイン設定を追加
+// 4.0.1 2025/01/02 直前の修正でフラッシュが点滅せず光り続ける動作になっていた問題を修正
+// 4.0.0 2024/11/11 後方互換性のために残しておいたタグ設定の実装を削除
+//                  センサー条件にセルフスイッチを追加
+// 3.7.1 2024/02/04 詳細タグが指定されていた場合は、必ずその設定を利用するよう修正
+// 3.7.0 2024/01/04 後方互換性のために残しておいたタグ設定の説明をヘルプから削除（実装は残ります）
+// 3.6.0 2023/11/02 3.5.0で追加した機能で、イベントごとに異なるスイッチ、セルフスイッチを指定できる機能を追加
+// 3.5.0 2023/10/23 検知範囲に入ったときにONになるスイッチ、セルフスイッチを指定できる機能を追加
+// 3.4.0 2022/06/03 イベントごと、ページごとにフキダシや感知距離、範囲を変えられる設定を追加
+// 3.3.0 2022/06/03 イベント感知の距離を上下左右で個別に指定できる機能を追加
+// 3.2.1 2021/06/01 フラッシュとフキダシの無効設定のメモタグが正常に機能していなかった問題を修正
 // 3.2.0 2021/01/27 MZで動作するよう修正
 // 3.1.1 2020/07/05 3.1.0の修正をイベント開始時にも適用できるよう変更
 // 3.1.0 2020/07/05 イベントから離れたらエフェクトを即時消去できる設定を追加
@@ -21,7 +32,7 @@
 // 1.0.0 2015/10/31 初版
 // ----------------------------------------------------------------------------
 // [Blog]   : https://triacontane.blogspot.jp/
-// [Twitter]: https://twitter.com/triacontane/
+// [X]      : https://x.com/triacontane/
 // [GitHub] : https://github.com/triacontane/
 //=============================================================================
 
@@ -32,68 +43,17 @@
  * @base PluginCommonBase
  * @author トリアコンタン
  *
- * @param DefaultFlash
- * @text デフォルトフラッシュ
- * @desc 感知時にイベントを指定色でフラッシュさせます。(ON/OFF)
- * @default true
- * @type boolean
- *
- * @param DefaultBalloon
- * @text デフォルトフキダシ
- * @desc 感知時にイベントに自動でフキダシアイコンを出します。
- * (1:びっくり 2:はてな 3:音符 4:ハート 5:怒り....)
- * @default 0
- * @type select
- * @option なし
- * @value 0
- * @option びっくり
- * @value 1
- * @option はてな
- * @value 2
- * @option 音符
- * @value 3
- * @option ハート
- * @value 4
- * @option 怒り
- * @value 5
- * @option 汗
- * @value 6
- * @option くしゃくしゃ
- * @value 7
- * @option 沈黙
- * @value 8
- * @option 電球
- * @value 9
- * @option Zzz
- * @value 10
- * @option ユーザ定義1
- * @value 11
- * @option ユーザ定義2
- * @value 12
- * @option ユーザ定義3
- * @value 13
- * @option ユーザ定義4
- * @value 14
- * @option ユーザ定義5
- * @value 15
+ * @param DetailList
+ * @text 設定リスト
+ * @desc フキダシの設定リストです。
+ * @default []
+ * @type struct<Detail>[]
  *
  * @param DisableEmpty
  * @text 空イベントは無効
  * @desc イベント内容が空の場合、感知しなくなります。(ON/OFF)
  * @default true
  * @type boolean
- *
- * @param SensorDistance
- * @text 感知距離
- * @desc イベントを関知する距離です。
- * @default 2
- * @type number
- *
- * @param FlashColor
- * @text フラッシュカラー
- * @desc 感知時のフラッシュ色です。R(赤),G(緑),B(青),A(強さ)の順番で指定してください。
- * @default {"Red":"255","Green":"255","Blue":"255","Alpha":"255"}
- * @type struct<Color>
  *
  * @param FlashDuration
  * @text フラッシュ時間
@@ -115,7 +75,7 @@
  *
  * @param ConsiderationDir
  * @text 向きを考慮
- * @desc プレイヤーがイベントの方を向いている場合のみエフェクトを有効にします。(ON/OFF)
+ * @desc プレイヤーがイベントの方を向いている場合のみエフェクトを有効にします。
  * @default false
  * @type boolean
  *
@@ -131,29 +91,20 @@
  * @default false
  * @type boolean
  *
- * @help 周囲に存在するイベントを感知してイベントにエフェクトを発生させます。
+ * @param performanceOption
+ * @text パフォーマンス設定
+ * @desc 有効にするとパラメータに制御文字が使えなくなりますが、パフォーマンスが改善する可能性があります。
+ * @default false
+ * @type boolean
+ *
+ * @help NearEventSensor.js
+ *
+ * 周囲に存在するイベントを感知してイベントにエフェクトを発生させます。
  * 実行可能なイベントをプレイヤーに伝えてユーザビリティを向上させます。
- * 使用できるエフェクトはフラッシュとフキダシアイコン（およびその両方）です。
- *
- * 各エフェクトの有効可否は、プラグインパラメータによる一括設定と
- * イベントのメモ欄による個別設定があり、個別設定が優先されます。
- *
- * 感知時のエフェクトをフラッシュにしたい場合は、
- * メモ欄を以下の通り指定してください。
- * <NESフラッシュ対象:ON>  # 対象イベントのフラッシュを有効にします。
- * <NESフラッシュ対象:OFF> # 対象イベントのフラッシュを無効にします。
- *
- * 感知時のエフェクトをフキダシアイコンにしたい場合は、
- * メモ欄を以下の通り指定してください。
- * <NESフキダシ対象:1> # 対象イベントのフキダシを(1:びっくり)にします。
- * <NESフキダシ対象:0> # 対象イベントのフキダシを無効にします。
- *
- * 特定のスイッチもしくはセルフスイッチがONのときのみ感知エフェクトを
- * 表示したい場合は、メモ欄を以下の通り指定してください。
- * <NESスイッチ:1>       # スイッチ[1]がONのときのみエフェクトを出します。
- * <NESSwitch:1>         # 同上
- * <NESセルフスイッチ:A> # セルフスイッチ[A]がONのときのみエフェクトを出します。
- * <NESSelfSwitch:1>     # 同上
+ * パラメータ「詳細設定リスト」で感知設定を入力し、
+ * イベントのメモ欄に以下の通り入力します。
+ * <NES詳細:sensor01>    # 識別子[sensor01]の設定を適用
+ * <NESDetail:sensor01> # 同上
  *
  * このプラグインの利用にはベースプラグイン『PluginCommonBase.js』が必要です。
  * 『PluginCommonBase.js』は、RPGツクールMZのインストールフォルダ配下の
@@ -196,11 +147,159 @@
  * @default 255
  */
 
+/*~struct~Range:
+ * @param Left
+ * @text 左マス数
+ * @desc 左方向のマス数
+ * @type number
+ * @default 0
+ *
+ * @param Right
+ * @text 右マス数
+ * @desc 右方向のマス数
+ * @type number
+ * @default 0
+ *
+ * @param Up
+ * @text 上マス数
+ * @desc 上方向のマス数
+ * @type number
+ * @default 0
+ *
+ * @param Down
+ * @text 下マス数
+ * @desc 下方向のマス数
+ * @type number
+ * @default 0
+ */
+
+/*~struct~Detail:
+ * @param Id
+ * @text 識別子
+ * @desc 設定の識別子です。空にした場合、すべてのイベントに適用されるので注意してください。
+ * @default sensor01
+ *
+ * @param Page
+ * @text ページ条件
+ * @desc イベントページが指定した値のときに有効になります。0を指定すると全ページで有効になります。
+ * @default 0
+ * @type number
+ *
+ * @param Switch
+ * @text スイッチ条件
+ * @desc 指定したスイッチがONのときに有効になります。0を指定すると常に有効になります。
+ * @default 0
+ * @type switch
+ *
+ * @param SelfSwitch
+ * @text セルフスイッチ条件
+ * @desc 指定したセルフスイッチがONのときに有効になります。指定しない場合は常に有効になります。
+ * @default
+ * @type select
+ * @option
+ * @option A
+ * @option B
+ * @option C
+ * @option D
+ *
+ * @param Reverse
+ * @text 条件反転
+ * @desc 各種条件を"満たさない場合"にセンサーが有効になります。
+ * @default false
+ * @type boolean
+ *
+ * @param SensorDistance
+ * @text 感知距離
+ * @desc イベントを感知する距離です。
+ * @default 2
+ * @type number
+ *
+ * @param SensorRange
+ * @text 感知範囲
+ * @desc イベントを感知する範囲を上下左右で細かく設定します。
+ * @default {}
+ * @type struct<Range>
+ *
+ * @param Balloon
+ * @text フキダシ
+ * @desc 感知時にイベントに自動でフキダシアイコンを出します。
+ * (1:びっくり 2:はてな 3:音符 4:ハート 5:怒り....)
+ * @default 0
+ * @type select
+ * @option なし
+ * @value 0
+ * @option びっくり
+ * @value 1
+ * @option はてな
+ * @value 2
+ * @option 音符
+ * @value 3
+ * @option ハート
+ * @value 4
+ * @option 怒り
+ * @value 5
+ * @option 汗
+ * @value 6
+ * @option くしゃくしゃ
+ * @value 7
+ * @option 沈黙
+ * @value 8
+ * @option 電球
+ * @value 9
+ * @option Zzz
+ * @value 10
+ * @option ユーザ定義1
+ * @value 11
+ * @option ユーザ定義2
+ * @value 12
+ * @option ユーザ定義3
+ * @value 13
+ * @option ユーザ定義4
+ * @value 14
+ * @option ユーザ定義5
+ * @value 15
+ *
+ * @param FlashColor
+ * @text フラッシュカラー
+ * @desc 感知時のフラッシュ色です。R(赤),G(緑),B(青),A(強さ)の順番で指定してください。
+ * @default
+ * @type struct<Color>
+ *
+ * @param SensorSelfSwitch
+ * @text センサーセルフスイッチ
+ * @desc 感知したときに自動でONになるセルフスイッチです。離れたらOFFになります。
+ * @default
+ * @type select
+ * @option A
+ * @option B
+ * @option C
+ * @option D
+ *
+ * @param SensorSwitch
+ * @text センサースイッチ
+ * @desc 感知したときに自動でONになるスイッチです。離れたらOFFになります。
+ * @default 0
+ * @type switch
+ *
+ */
+
 (function() {
     'use strict';
     const script = document.currentScript;
     const param = PluginManagerEx.createParameter(script);
-    param.FlashColorArray = [param.FlashColor.Red, param.FlashColor.Green, param.FlashColor.Blue, param.FlashColor.Alpha];
+    if (!param.DetailList) {
+        param.DetailList = [];
+    }
+    if (param.performanceOption) {
+        param.DetailList = param.DetailList.map(detail => {
+            const data = {};
+            const prevData = detail._parameter;
+            for (const key in prevData) {
+                data[key] = prevData[key];
+            }
+            return data;
+        });
+    }
 
     //=============================================================================
     // Sprite_Character
@@ -263,11 +362,12 @@
         }
     };
 
-    Game_CharacterBase.prototype.applySensorEffect = function(targetEvent) {
-        if (!this.isFlash() && targetEvent.isFlashEvent()) {
-            this.startFlash(param.FlashColorArray.clone(), param.FlashDuration);
+    Game_CharacterBase.prototype.applySensorEffect = function(targetEvent, detail) {
+        const color = detail.FlashColor;
+        if (color && !this.isFlash()) {
+            this.startFlash([color.Red, color.Green, color.Blue, color.Alpha], param.FlashDuration);
         }
-        const balloonId = targetEvent.getSensorBalloonId();
+        const balloonId = detail.Balloon;
         if (balloonId && (!param.WaitForBalloon || !this.isBalloonPlaying())) {
             if (this._balloonInterval <= 0 || isNaN(this._balloonInterval)) {
                 $gameTemp.requestBalloon(this, balloonId);
@@ -304,6 +404,31 @@
         this._balloonInterval = 0;
     };
 
+    Game_Event.prototype.findEventSensorDetail = function() {
+        const meta = this.event().meta;
+        const detailTag = meta['NES詳細'] || meta['NESDetail'];
+        return param.DetailList.find(item => {
+            if (item.Id && item.Id !== detailTag) {
+                return false;
+            }
+            const result = this.isValidSensorDetail(item);
+            return item.Reverse ? !result : result;
+        });
+    };
+
+    Game_Event.prototype.isValidSensorDetail = function(item) {
+        if (item.Page && item.Page !== this._pageIndex + 1) {
+            return false;
+        }
+        if (item.Switch && !$gameSwitches.value(item.Switch)) {
+            return false;
+        }
+        if (item.SelfSwitch && !$gameSelfSwitches.value([$gameMap.mapId(), this._eventId, item.SelfSwitch])) {
+            return false;
+        }
+        return true;
+    };
+
     const _Game_EventUpdate       = Game_Event.prototype.update;
     Game_Event.prototype.update = function() {
         _Game_EventUpdate.apply(this, arguments);
@@ -320,17 +445,35 @@
 
     Game_Event.prototype.updateSensorEffect = function() {
         const subject = this.findNearEffectSubject();
-        if (this.isSensorOn()) {
-            subject.applySensorEffect(this);
+        const detail = this.findEventSensorDetail();
+        const sensorOn = detail && this.isSensorOn(detail);
+        if (sensorOn) {
+            subject.applySensorEffect(this, detail);
         } else {
-            subject.eraseSensorEffect(this);
+            subject.eraseSensorEffect();
             this._balloonInterval = 0;
+        }
+        if (this._sensorOn !== sensorOn) {
+            this._sensorOn = sensorOn;
+            if (detail) {
+                this.updateSensorSwitch(detail);
+            }
         }
     };
 
-    Game_Event.prototype.isSensorOn = function() {
-        return this.isEmptyValidate() && this.isVeryNearThePlayer() &&
-            !$gameMap.isEventRunning() && this.isValidSensor();
+    Game_Event.prototype.updateSensorSwitch = function(detail) {
+        const switchId = detail.SensorSwitch;
+        if (switchId) {
+            $gameSwitches.setValue(switchId, this._sensorOn);
+        }
+        const selfSwitchType = detail.SensorSelfSwitch;
+        if (selfSwitchType) {
+            $gameSelfSwitches.setValue([this._mapId, this._eventId, selfSwitchType.toUpperCase()], this._sensorOn);
+        }
+    };
+
+    Game_Event.prototype.isSensorOn = function(detail) {
+        return this.isEmptyValidate() && this.isVeryNearThePlayer(detail) && !$gameMap.isEventRunning();
     };
 
     Game_Event.prototype.findNearEffectSubject = function() {
@@ -342,40 +485,25 @@
         return (list && list.length > 1) || !param.DisableEmpty;
     };
 
-    Game_Event.prototype.isFlashEvent = function() {
-        const useFlash = this.findEventSensorNote( ['NESフラッシュ対象', 'NESFlashEvent']);
-        return useFlash || param.DefaultFlash;
-    };
-
-    Game_Event.prototype.isValidSensor = function() {
-        return this.isValidSensorSwitch() && this.isValidSensorSelfSwitch();
-    };
-
-    Game_Event.prototype.isValidSensorSwitch = function() {
-        const switchId = this.findEventSensorNote( ['NESスイッチ', 'NESSwitch']);
-        return switchId ? $gameSwitches.value(switchId) : true;
-    };
-
-    Game_Event.prototype.isValidSensorSelfSwitch = function() {
-        const selfSwitchType = this.findEventSensorNote( ['NESセルフスイッチ', 'NESSelfSwitch']);
-        return selfSwitchType ? $gameSelfSwitches.value([this._mapId, this._eventId, selfSwitchType.toUpperCase()]) : true;
-    };
-
-    Game_Event.prototype.getSensorBalloonId = function() {
-        const balloonId = this.findEventSensorNote( ['NESフキダシ対象', 'NESBalloonEvent']);
-        return balloonId ? balloonId : param.DefaultBalloon;
-    };
-
-    Game_Event.prototype.findEventSensorNote = function(tags) {
-        return PluginManagerEx.findMetaValue(this.event(), tags);
-    };
-
-    Game_Event.prototype.isVeryNearThePlayer = function() {
+    Game_Event.prototype.isVeryNearThePlayer = function(detail) {
         const sx = this.deltaXFrom($gamePlayer.x);
         const sy = this.deltaYFrom($gamePlayer.y);
         const ax = Math.abs(sx);
         const ay = Math.abs(sy);
-        const result = (ax + ay <= param.SensorDistance);
+        const sensorRange = detail.SensorRange;
+        if (sensorRange) {
+            if (this.x - $gamePlayer.x > sensorRange.Left) {
+                return false;
+            } else if ($gamePlayer.x - this.x > sensorRange.Right) {
+                return false;
+            } else if (this.y - $gamePlayer.y > sensorRange.Up) {
+                return false;
+            } else if ($gamePlayer.y - this.y > sensorRange.Down) {
+                return false;
+            }
+        }
+        const sensorDistance = detail.SensorDistance;
+        const result = (ax + ay <= sensorDistance) || !sensorDistance;
         if (result && param.ConsiderationDir) {
             if (ax > ay) {
                 return $gamePlayer.direction() === (sx > 0 ? 6 : 4);

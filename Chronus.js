@@ -6,6 +6,20 @@
 // http://opensource.org/licenses/mit-license.php
 // ----------------------------------------------------------------------------
 // Version
+// 2.9.2 2025/12/03 アラーム設定の「年」の計算式が間違っていた問題を修正
+// 2.9.1 2025/06/13 アナログ時計を表示しているとき、メニュー画面から戻ったときに一瞬だけ時計の針が0時0分に戻る現象を修正
+// 2.9.0 2024/05/28 2.8.0の機能をプラグインコマンドに変更
+// 2.8.0 2024/05/26 現在の月名、曜日名、時間帯名を取得するスクリプトをヘルプに記載
+// 2.7.0 2024/05/09 アナログ時計をズームや画面のフェードアウトの影響を受けないよう変更
+// 2.6.2 2024/04/01 2.6.0の修正によりカレンダーの枠の非表示が機能しなくなっていた問題を修正
+// 2.6.1 2024/01/28 天候を設定しているときにメニューの開閉を実施すると、天候の強さが変わってしまう場合がある問題を修正
+// 2.6.0 2024/01/25 カレンダーウィンドウの下をプレイヤーが通ったらウィンドウを半透明にするよう修正
+// 2.5.0 2023/09/11 カレンダーウィンドウのプライオリティをメッセージウィンドウの下に変更
+// 2.4.2 2023/04/04 インターバルを0に設定したアラームを指定すると、設定次第でフリーズする場合がある問題を修正
+// 2.4.1 2022/04/14 2.4.0でカレンダーのフォントサイズを変更したとき描画位置がズレる問題を修正
+// 2.4.0 2022/04/07 カレンダー表記に制御文字を使える機能を追加
+// 2.3.0 2021/12/29 天候による色調補正を無効にできる設定を追加
+// 2.2.0 2021/07/15 アナログ時計の短針を24時間で1周するよう変更する機能を追加
 // 2.1.0 2020/11/21 自然時間加算間隔を変更するプラグインコマンドを追加
 // 2.0.2 2020/11/12 イベントコマンド『天候の設定』を実行するとエラーになる問題を修正
 // 2.0.1 2020/08/26 ベースプラグインの説明を追加
@@ -207,6 +221,11 @@
  * @desc カレンダーの表示 Y 座標です。
  * @default 0
  *
+ * @param カレンダー横幅
+ * @type number
+ * @desc カレンダーの横幅です。指定しなかった場合は自動で調整されます。
+ * @default 0
+ *
  * @param カレンダーフォントサイズ
  * @type number
  * @desc カレンダーのフォントサイズです。0を指定するとデフォルトとなります。
@@ -256,6 +275,12 @@
  * @dir img/pictures/
  * @type file
  *
+ * @param 24hourClock
+ * @text 24時間時計
+ * @desc 有効にすると短針が24時間で1周する時計になります。
+ * @default false
+ * @type boolean
+ *
  * @param 時計X座標
  * @type number
  * @desc アナログ時計の表示X座標です。画像の中心座標を指定してください。
@@ -270,6 +295,11 @@
  * @desc イベント実行中も時間経過するようになります。(ON/OFF)
  * @default false
  * @type boolean
+ *
+ * @param 天候補正無効
+ * @type boolean
+ * @desc 天候による色調補正を無効化します。
+ * @default false
  *
  * @command ADD_TIME
  * @text 時間加算
@@ -652,6 +682,28 @@
  * @desc タイマーの識別子です。
  * @default
  *
+ * @command SET_TIME_INFO_NAME
+ * @text 現在時刻情報設定
+ * @desc 指定した変数に現在時刻の関連情報を設定します。
+ *
+ * @arg variableId
+ * @text 変数番号
+ * @desc 時刻情報を設定する変数番号です。
+ * @default 1
+ * @type variable
+ *
+ * @arg method
+ * @text 情報種別
+ * @desc 設定する情報の種別です。
+ * @default getMonthName
+ * @type select
+ * @option 月名
+ * @value getMonthName
+ * @option 曜日名
+ * @value getWeekName
+ * @option 時間帯名
+ * @value getTimeZoneName
+ *
  * @help ゲーム内で時刻と天候の概念を表現できるプラグインです。
  * 自動、マップ移動、戦闘で時間が経過し、時間と共に天候と色調が変化します。
  * これらの時間は調節可能で、またイベント中は時間の進行が停止します。
@@ -871,6 +923,8 @@ function Window_Chronus() {
     var paramCalendarFrameHidden = getParamBoolean('カレンダー枠の非表示');
     var paramCalendarLineSpacing = getParamNumber('日時フォーマット行間', 0);
     var paramCalendarHidden      = getParamBoolean('カレンダーの非表示');
+    var param24hourClock         = getParamBoolean('24hourClock');
+    var paramDisableWeatherTone  = getParamBoolean('天候補正無効');
 
     const script = document.currentScript;
     PluginManagerEx.registerCommand(script, 'ADD_TIME', args => {
@@ -997,6 +1051,13 @@ function Window_Chronus() {
         }
     });
 
+    PluginManagerEx.registerCommand(script, 'SET_TIME_INFO_NAME', args => {
+        var chronus = $gameSystem.chronus();
+        if (chronus[args.method]) {
+            $gameVariables.setValue(args.variableId, chronus[args.method]());
+        }
+    });
+
     PluginManagerEx.registerCommand(script, 'SET_AUTO_ADD_INTERVAL', args => {
         $gameSystem.chronus().setAutoAddInterval(args.interval);
     });
@@ -1016,7 +1077,7 @@ function Window_Chronus() {
         var year = args.year || chronus.getYear();
         var month = args.year || chronus.getMonth();
         var day = args.day || chronus.getDay();
-        return args.minute + args.hour * 100 + day * 10000 + month * 1000000 * year + 100000000;
+        return args.minute + args.hour * 100 + day * 10000 + month * 1000000 + year * 100000000;
     };
 
     Game_Interpreter.prototype.getSwitchKey = function(switchId, selfSwitchId) {
@@ -1157,7 +1218,8 @@ function Window_Chronus() {
 
     Scene_Map.prototype.createChronusWindow = function() {
         this._chronusWindow = new Window_Chronus();
-        this.addWindow(this._chronusWindow);
+        const index = this._windowLayer.getChildIndex(this._messageWindow);
+        this._windowLayer.addChildAt(this._chronusWindow, index);
     };
 
     //=============================================================================
@@ -1183,15 +1245,16 @@ function Window_Chronus() {
         this.createContents();
         this.x = getParamNumber('カレンダー表示X座標');
         this.y = getParamNumber('カレンダー表示Y座標');
-        if (paramCalendarFrameHidden) {
-            this.opacity = 0;
-        }
         this.refresh();
     };
 
     Window_Chronus.prototype.getDefaultWidth = function() {
         var bitmap      = new Bitmap();
         bitmap.fontSize = this.standardFontSize();
+        var paramWidth = getParamNumber('カレンダー横幅');
+        if (paramWidth) {
+            return paramWidth + this.standardPadding() * 2;
+        }
         var width1      = bitmap.measureTextWidth(this.getDateFormat(1));
         var width2      = bitmap.measureTextWidth(this.getDateFormat(2));
         return Math.max(width1, width2) + this.standardPadding() * 2;
@@ -1231,19 +1294,40 @@ function Window_Chronus() {
 
     Window_Chronus.prototype.refresh = function() {
         this.contents.clear();
-        var width  = this.contents.width;
         var height = this.lineHeight();
-        this.contents.drawText(this.getDateFormat(1), 0, 0, width, height, 'left');
-        this.contents.drawText(this.getDateFormat(2), 0, height + paramCalendarLineSpacing, width, height, 'left');
+        var padding = ($gameSystem.mainFontSize() - this.contents.fontSize) / 2;
+        this.drawTextEx(this.getDateFormat(1), 0, padding);
+        this.drawTextEx(this.getDateFormat(2), 0, height + paramCalendarLineSpacing + padding);
         this.update();
     };
 
     Window_Chronus.prototype.update = function() {
         if (this.chronus().isShowingCalendar()) {
             this.show();
-            if (this.chronus().isNeedRefresh()) this.refresh();
+            if (this.chronus().isNeedRefresh()) {
+                this.refresh();
+            }
+            this.updateOpacity();
         } else {
             this.hide();
+        }
+    };
+
+    Window_Chronus.prototype.updateOpacity = function() {
+        const px = $gamePlayer.screenX();
+        const py = $gamePlayer.screenY() - $gameMap.tileHeight() / 2;
+        if (this.x <= px && this.x + this.width >= px &&
+            this.y <= py && this.y + this.height >= py) {
+            this.opacity = 128;
+            this.backOpacity = 128;
+            this.contentsOpacity = 128;
+        } else {
+            this.opacity = 255;
+            this.backOpacity = 255;
+            this.contentsOpacity = 255;
+        }
+        if (paramCalendarFrameHidden) {
+            this.opacity = 0;
         }
     };
 
@@ -1272,6 +1356,7 @@ function Window_Chronus() {
         this.bitmap   = ImageManager.loadPicture(this.chronus().getClockBaseFile());
         this.createHourHandSprite();
         this.createMinuteHandSprite();
+        this.update();
     };
 
     Sprite_Chronicle_Clock.prototype.createHourHandSprite = function() {
@@ -1318,17 +1403,13 @@ function Window_Chronus() {
         return $gameSystem.chronus();
     };
 
-    //=============================================================================
-    // Spriteset_Map
-    //  アナログ時計の画像を追加定義します。
-    //=============================================================================
-    var _Spriteset_Base_createUpperLayer      = Spriteset_Base.prototype.createUpperLayer;
-    Spriteset_Base.prototype.createUpperLayer = function() {
-        _Spriteset_Base_createUpperLayer.apply(this, arguments);
-        if (this instanceof Spriteset_Map) this.createClockSprite();
+    var _Scene_Map_createSpriteset = Scene_Map.prototype.createSpriteset;
+    Scene_Map.prototype.createSpriteset = function() {
+        _Scene_Map_createSpriteset.apply(this, arguments);
+        this.createClockSprite();
     };
 
-    Spriteset_Map.prototype.createClockSprite = function() {
+    Scene_Map.prototype.createClockSprite = function() {
         if (isParamExist('文字盤画像ファイル')) {
             this._clockSprite = new Sprite_Chronicle_Clock();
             this.addChild(this._clockSprite);
@@ -1389,7 +1470,6 @@ function Window_Chronus() {
 
     Game_Chronus.prototype.onMapLoaded = function() {
         this.updateWeatherType();
-        this.updateWeatherPower();
         this.refreshWeather(true);
     };
 
@@ -1465,7 +1545,7 @@ function Window_Chronus() {
                 if (tone.length < 4) throw new Error('色調の値が不正です。:' + tone);
             }
         }.bind(this));
-        if (this.getWeatherTypeId() !== 0) {
+        if (this.getWeatherTypeId() !== 0 && !paramDisableWeatherTone) {
             tone[0] = tone[0] > 0 ? tone[0] / 7 : tone[0] - 14;
             tone[1] = tone[1] > 0 ? tone[1] / 7 : tone[1] - 14;
             tone[2] = tone[2] > 0 ? tone[2] / 7 : tone[1] - 14;
@@ -1840,7 +1920,7 @@ function Window_Chronus() {
             return this.getValuePadding(this.getYear(), arguments[1].length);
         }.bind(this));
         format = format.replace(/MON/gi, function() {
-            return this._monthNames[this.getMonth() - 1];
+            return this.getMonthName();
         }.bind(this));
         format = format.replace(/MM/gi, function() {
             return this.getValuePadding(this.getMonth(), String(this.getMonthOfYear()).length);
@@ -1873,6 +1953,10 @@ function Window_Chronus() {
             return this.getTimeZoneName();
         }.bind(this));
         return format;
+    };
+
+    Game_Chronus.prototype.getMonthName = function() {
+        return this._monthNames[this.getMonth() - 1]
     };
 
     Game_Chronus.prototype.getTimeZone = function() {
@@ -1923,7 +2007,8 @@ function Window_Chronus() {
     };
 
     Game_Chronus.prototype.getRotationHourHand = function() {
-        return (this.getAnalogueHour() % 12) * (360 / 12) * Math.PI / 180;
+        var numberOfHour = param24hourClock ? 24 : 12;
+        return (this.getAnalogueHour() % numberOfHour) * (360 / numberOfHour) * Math.PI / 180;
     };
 
     Game_Chronus.prototype.getRotationMinuteHand = function() {
@@ -1954,7 +2039,7 @@ function Window_Chronus() {
         var year       = Math.floor(timeNumber / 100000000);
         var dayMeter   = this.calcNewDay(year, month, day) - (this._criterionDay || 0);
         var targetTime = dayMeter * 24 * 60 + timeMeter;
-        this.makeTimer(timerName, (targetTime - baseTime) || 0, switchKey, true, interval);
+        this.makeTimer(timerName, (targetTime - baseTime) || 0, switchKey, interval > 0, interval);
     };
 
     Game_Chronus.prototype.makeTimer = function(timerName, timeout, switchKey, loop, interval) {

@@ -6,6 +6,20 @@
  http://opensource.org/licenses/mit-license.php
 ----------------------------------------------------------------------------
  Version
+ 1.4.0 2026/04/09 条件付きイベント生成で条件反転の機能を追加
+ 1.3.4 2025/04/02 動的生成イベントに対して2回連続でイベントの消去を実行するとエラーになる問題を修正
+ 1.3.3 2024/11/27 1.3.2 の修正ロジックに誤りがあった問題を修正
+ 1.3.2 2024/11/26 1.3.1の修正でイベントIDが0のイベントが生成される可能性がある問題を修正
+ 1.3.1 2024/11/24 イベントの生成と破棄を繰り返したときに徐々に動作が重くなっていく問題を修正
+ 1.3.0 2024/10/03 EventMovableLimitation.jsと組み合わせたとき、生成イベントにも同プラグインの移動制限を適用できるよう修正
+ 1.2.6 2024/08/25 既存イベントと同じ場所に同じプライオリティで生成したとき、生成イベントが手前に表示されるよう修正
+ 1.2.5 2024/01/21 テンプレートイベントとの順序関係を明記
+ 1.2.4 2023/10/14 動的イベントを生成した瞬間にアニメーションやフキダシを再生しようとすると表示されない問題を修正
+ 1.2.3 2022/03/02 無効なイベントIDもしくは座標を指定したときエラーではなく、警告ログの出力に留めるよう仕様変更
+ 1.2.2 2021/11/23 セルフスイッチを維持しない設定のときはテンプレートイベントのセルフ変数も消去するよう変更
+ 1.2.1 2021/10/05 1.2.0の機能でイベントを配置したとき、イベント画像が2つ重なって表示されてしまう問題を修正
+ 1.2.0 2021/09/16 リージョンを配置するだけでマップイベントやテンプレートイベントのコピーを自動配置できる機能を追加
+ 1.1.1 2021/05/07 動的生成イベントに対してアニメーションを再生中に『イベントの消去』を実行するとエラーになる問題を修正
  1.1.0 2021/01/04 イベント動的生成時の座標指定に変数を指定するプラグインパラメータを追加
  1.0.3 2020/11/30 英訳版ヘルプをご提供いただいて追加
  1.0.2 2020/11/19 イベント、プレイヤーと重ならない生成条件が正常に機能していなかった問題を修正
@@ -13,7 +27,7 @@
  1.0.0 2020/07/25 MV版から流用作成
 ----------------------------------------------------------------------------
  [Blog]   : https://triacontane.blogspot.jp/
- [Twitter]: https://twitter.com/triacontane/
+ [X]      : https://x.com/triacontane/
  [GitHub] : https://github.com/triacontane/
 =============================================================================*/
 
@@ -22,6 +36,7 @@
  * @author Triacontane
  * @target MZ
  * @base PluginCommonBase
+ * @orderAfter TemplateEvent
  * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/EventReSpawn.js
  *
  * @param keepSelfSwitch
@@ -130,6 +145,12 @@
  * @default []
  * @type number[]
  *
+ * @arg reverse
+ * @text Reverse of conditions
+ * @desc Reverse the content of all conditions and generate at locations that do not meet the conditions.
+ * @default false
+ * @type boolean
+ *
  * @arg template
  * @text Template Generation
  * @desc Generate template events when enabled. TemplateEvent.js is required.
@@ -158,6 +179,13 @@
  * Template events can be generated dynamically on the map when combined 
  * with the separately published template event plugin(TemplateEvent.js).
  *
+ * In addition, you can place events and template events by simply placing regions on the map.
+ * You can place events and template events by simply placing regions on the map.
+ * You can also place events and template events by simply placing regions on the map.
+ * The tags in the note of the source event.
+ * Place a copy of the event in the square where you placed the region [1].
+ * <CP:1>
+ *
  * You need the base plugin "PluginCommonBase.js" to use this plugin.
  * The "PluginCommonBase.js" is stored in the following folder under the installation folder of RPG Maker MZ.
  * dlc/BasicResources/plugins/official
@@ -173,6 +201,7 @@
  * @author トリアコンタン
  * @target MZ
  * @base PluginCommonBase
+ * @orderAfter TemplateEvent
  * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/EventReSpawn.js
  *
  * @param keepSelfSwitch
@@ -281,6 +310,12 @@
  * @default []
  * @type number[]
  *
+ * @arg reverse
+ * @text 条件の逆転
+ * @desc すべての条件の内容を逆転させ、条件を満たさなかった場所に生成します。判定しない、未指定の条件には影響しません。
+ * @default false
+ * @type boolean
+ *
  * @arg template
  * @text テンプレート生成
  * @desc 有効にするとテンプレートイベントを生成します。別途テンプレートイベントプラグインが必要です。
@@ -309,6 +344,11 @@
  * 別途公開しているテンプレートイベントプラグインと組み合わせると
  * テンプレートイベントをマップ上に動的生成できます。
  *
+ * さらに、マップにリージョンを配置するだけでイベントやテンプレートイベントを
+ * 配置できます。コピー元イベントのメモ欄にタグを記述してください。
+ * ・リージョン[1]を配置したマスにイベントのコピーを配置
+ * <CP:1>
+ *
  * このプラグインの利用にはベースプラグイン『PluginCommonBase.js』が必要です。
  * 『PluginCommonBase.js』は、RPGツクールMZのインストールフォルダ配下の
  * 以下のフォルダに格納されています。
@@ -318,6 +358,170 @@
  *  作者に無断で改変、再配布が可能で、利用形態（商用、18禁利用等）
  *  についても制限はありません。
  *  このプラグインはもうあなたのものです。
+ */
+
+/*:zh
+ * @plugindesc 事件动态生成
+ * @author Triacontane
+ * @target MZ
+ * @base PluginCommonBase
+ * @orderAfter TemplateEvent
+ * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/EventReSpawn.js
+ *
+ * @param keepSelfSwitch
+ * @text 保持独立开关
+ * @desc 启用后，在移动场所时不会清除独立开关。如果执行事件清除，开关也会被清除。
+ * @default false
+ * @type boolean
+ *
+ * @param variableSpawnEventId
+ * @text 生成事件ID存储变量
+ * @desc 将最后生成的事件ID存储在指定的变量中。
+ * @default 0
+ * @type variable
+ *
+ * @command MAKE
+ * @text 事件生成
+ * @desc 动态生成事件。
+ *
+ * @arg id
+ * @text 事件ID
+ * @desc 要复制的事件的ID或名称。数字会被解释为ID。
+ * @default 1
+ * @type string
+ *
+ * @arg x
+ * @text X坐标
+ * @desc 生成目标的X坐标。
+ * @default 1
+ * @type number
+ *
+ * @arg y
+ * @text Y坐标
+ * @desc 生成目标的Y坐标。
+ * @default 1
+ * @type number
+ *
+ * @arg xByVariableId
+ * @text X坐标变量ID（当使用变量指定时）
+ * @desc 指定存储X坐标值的变量ID。若指定为0，则不使用变量。
+ * @default 0
+ * @type number
+ *
+ * @arg yByVariableId
+ * @text Y坐标变量ID（当使用变量指定时）
+ * @desc 指定存储Y坐标值的变量ID。若指定为0，则不使用变量。
+ * @default 0
+ * @type number
+ *
+ * @arg template
+ * @text 模板生成
+ * @desc 启用时将生成模板事件。需要另外的模板事件插件。
+ * @default false
+ * @type boolean
+ *
+ * @command MAKE_RANDOM
+ * @text 条件随机生成
+ * @desc 根据指定条件在随机位置动态生成事件。如果没有符合条件的位置，则不会生成。
+ *
+ * @arg id
+ * @text 事件ID
+ * @desc 要复制的事件的ID或名称。数字会被解释为ID。
+ * @default 1
+ * @type string
+ *
+ * @arg passable
+ * @text 仅可通行地形
+ * @desc 仅在可通行地形上生成事件。
+ * @default false
+ * @type boolean
+ *
+ * @arg screen
+ * @text 屏幕条件
+ * @desc 仅在屏幕内或屏幕外生成。
+ * @default 0
+ * @type select
+ * @option 不判断
+ * @value 0
+ * @option 屏幕内
+ * @value 1
+ * @option 屏幕外（距离屏幕显示边界超过2格）
+ * @value 2
+ *
+ * @arg overlap
+ * @text 角色与位置重叠
+ * @desc 生成时避免与已有事件或玩家位置重叠。
+ * @default 0
+ * @type select
+ * @option 不判断
+ * @value 0
+ * @option 不与玩家重叠
+ * @value 1
+ * @option 不与事件重叠
+ * @value 2
+ * @option 不与事件和玩家重叠
+ * @value 3
+ *
+ * @arg terrainTags
+ * @text 地形标签
+ * @desc 仅在指定地形标签上生成。
+ * @default []
+ * @type number[]
+ *
+ * @arg regions
+ * @text 区域
+ * @desc 仅在指定区域上生成。
+ * @default []
+ * @type number[]
+ *
+ * @arg reverse
+ * @text 条件反转
+ * @desc 反转所有条件的内容，在不满足条件的位置生成。未判断、未指定的条件不受影响。
+ * @default false
+ * @type boolean
+ *
+ * @arg template
+ * @text 模板生成
+ * @desc 启用时生成模板事件。需要 TemplateEvent.js。
+ * @default false
+ * @type boolean
+ *
+ * @arg algorithm
+ * @text 生成算法
+ * @desc 决定生成坐标的方式。如果符合条件的格子不多，从左上开始查找会更快。
+ * @default 0
+ * @type select
+ * @option 随机位置查找（当候选位置较多时较快）
+ * @value 0
+ * @option 从左上开始依次查找（当候选位置较少时较快）
+ * @value 1
+ *
+ * @help EventReSpawn.js
+ *
+ * 本插件可复制、动态生成并放置事件到地图上。
+ * 可直接指定生成位置，也可以根据条件随机生成。
+ *
+ * 通过“抹除事件”命令，复制的临时事件会被完全删除，
+ * 从而释放对象与精灵的使用空间。
+ * 独立开关会单独管理，每次生成时会初始化。
+ *
+ * 若与模板事件插件（TemplateEvent.js）组合使用，
+ * 可在地图上动态生成模板事件。
+ *
+ * 另外，也可以通过在地图上放置区域来生成事件或模板事件。
+ * 只需在地图上放置区域，即可生成对应事件。
+ * 事件备注中的标签：
+ * 在放置区域 [1] 的格子上复制事件。
+ * <CP:1>
+ *
+ * 使用本插件需要基础插件“PluginCommonBase.js”。
+ * “PluginCommonBase.js” 位于 RPG Maker MZ 安装文件夹下：
+ * dlc/BasicResources/plugins/official
+ *
+ * 使用协议：
+ *  你可以自由修改或再发布本插件，无需获得许可。
+ *  不限制用途（包括成人或商业用途）。
+ *  本插件完全归你所有。
  */
 
 /**
@@ -359,6 +563,60 @@ function Game_PrefabEvent() {
         $gameMap.spawnEventRandom(this.getEventIdForEventReSpawn(args.id, template), args, template, args.algorithm);
     });
 
+    Game_Temp.prototype.unshiftAnimation = function(request) {
+        this._animationQueue.unshift(request);
+    };
+
+    Game_Temp.prototype.unshiftBalloon = function(request) {
+        this._balloonQueue.unshift(request);
+    };
+
+    const _Spriteset_Base_createAnimation = Spriteset_Base.prototype.createAnimation;
+    Spriteset_Base.prototype.createAnimation = function(request) {
+        if (this.isExistNotPreparedPrefabSprite(request)) {
+            return;
+        }
+        _Spriteset_Base_createAnimation.apply(this, arguments);
+    };
+
+    const _Spriteset_Base_processAnimationRequests = Spriteset_Base.prototype.processAnimationRequests;
+    Spriteset_Base.prototype.processAnimationRequests = function() {
+        this._unshiftRequest = [];
+        _Spriteset_Base_processAnimationRequests.apply(this, arguments);
+        this._unshiftRequest.forEach(request => {
+            $gameTemp.unshiftAnimation(request);
+        });
+        this._unshiftRequest = null;
+    };
+
+    const _Spriteset_Map_createBalloon = Spriteset_Map.prototype.createBalloon;
+    Spriteset_Map.prototype.createBalloon = function(request) {
+        if (this.isExistNotPreparedPrefabSprite(request)) {
+            return;
+        }
+        _Spriteset_Map_createBalloon.apply(this, arguments);
+    };
+
+    const _Spriteset_Map_processBalloonRequests = Spriteset_Map.prototype.processBalloonRequests;
+    Spriteset_Map.prototype.processBalloonRequests = function() {
+        this._unshiftRequest = [];
+        _Spriteset_Map_processBalloonRequests.apply(this, arguments);
+        this._unshiftRequest.forEach(request => {
+            $gameTemp.unshiftBalloon(request);
+        });
+        this._unshiftRequest = null;
+    }
+
+    Spriteset_Base.prototype.isExistNotPreparedPrefabSprite = function(request) {
+        const targets = request.targets || [request.target];
+        if (targets.some(target =>  target instanceof Game_PrefabEvent && !target.isSpritePrepared())) {
+            this._unshiftRequest.push(request);
+            return true;
+        } else {
+            return false;
+        }
+    };
+
     Game_Interpreter.prototype.getEventIdForEventReSpawn = function(idOrName, isTemplate) {
         let id = 0;
         if (!isNaN(idOrName)) {
@@ -382,11 +640,55 @@ function Game_PrefabEvent() {
         }
         _Game_Map_setupEvents.apply(this, arguments);
         this._eventIdSequence = this._events.length || 1;
+        this.setupInitialSpawnEvents();
+    };
+
+    Game_Map.prototype.setupInitialSpawnEvents = function() {
+        const spawnMap = this.createSpawnMap();
+        if (spawnMap.size <= 0) {
+            return;
+        }
+        for (let x = 0; x <= this.width(); x++) {
+            for (let y = 0; y <= this.height(); y++) {
+                const regionId = this.regionId(x, y);
+                if (spawnMap.has(regionId)) {
+                    const spawn = spawnMap.get(regionId);
+                    this.spawnEvent(spawn.id, x, y, spawn.template);
+                    this._events[this._lastSpawnEventId].setSpritePrepared();
+                }
+            }
+        }
+    };
+
+    Game_Map.prototype.createSpawnMap = function() {
+        const spawnMap = new Map();
+        this._events.forEach(event => {
+            if (event.hasTemplate && event.hasTemplate()) {
+                return;
+            }
+            this.appendSpawnMap(event.event(), spawnMap,false);
+        });
+        if (typeof $dataTemplateEvents !== "undefined") {
+            $dataTemplateEvents.forEach(template => {
+                this.appendSpawnMap(template, spawnMap,true);
+            });
+        }
+        return spawnMap;
+    };
+
+    Game_Map.prototype.appendSpawnMap = function(event, spawnMap, isTemplate) {
+        if (!event) {
+            return;
+        }
+        const regionId = PluginManagerEx.findMetaValue(event, 'CP');
+        if (regionId) {
+            spawnMap.set(regionId, {id:event.id, template:isTemplate});
+        }
     };
 
     Game_Map.prototype.spawnEvent = function(originalEventId, x, y, isTemplate) {
         if (this.isExistEventData(originalEventId, isTemplate) && $gameMap.isValid(x, y)) {
-            const eventId = this.getEventIdSequence();
+            const eventId = this.findSpawnEventId();
             if (!isTemplate) {
                 const originalEvent = this.event(originalEventId);
                 if (this.isTemplateSpawn(originalEventId)) {
@@ -401,7 +703,7 @@ function Game_PrefabEvent() {
             this.setLastSpawnEventId(eventId);
             this._events[eventId]  = event;
         } else {
-            throw new Error('無効なイベントIDもしくは座標のためイベントを作成できませんでした。');
+            console.warn('無効なイベントIDもしくは座標のためイベントを作成できませんでした。');
         }
     };
 
@@ -428,7 +730,6 @@ function Game_PrefabEvent() {
 
     Game_Map.prototype.spawnEventRandom = function(originalEventId, conditionMap, isTemplate, algorithm) {
         const conditions = [];
-        conditions.push(this.isValid.bind(this));
         if (conditionMap.passable) {
             conditions.push(this.isErsCheckAnyDirectionPassable.bind(this));
         }
@@ -444,7 +745,7 @@ function Game_PrefabEvent() {
         if (conditionMap.regions && conditionMap.regions.length > 0) {
             conditions.push(this.isErsCheckRegionId.bind(this, conditionMap.regions));
         }
-        const position = this.getConditionalValidPosition(conditions, algorithm);
+        const position = this.getConditionalValidPosition(conditions, algorithm, conditionMap.reverse);
         if (position) {
             this.spawnEvent(originalEventId, position.x, position.y, isTemplate);
         } else {
@@ -455,13 +756,22 @@ function Game_PrefabEvent() {
 
     const _Game_Map_eraseEvent    = Game_Map.prototype.eraseEvent;
     Game_Map.prototype.eraseEvent = function(eventId) {
+        if (!this.event(eventId)) {
+            return;
+        }
         _Game_Map_eraseEvent.apply(this, arguments);
-        if (this._events[eventId].isExtinct()) {
+        if (this.event(eventId).isExtinct()) {
             delete this._events[eventId];
         }
     };
 
-    Game_Map.prototype.getEventIdSequence = function() {
+    Game_Map.prototype.findSpawnEventId = function() {
+        if (this._eventIdSequence > 100) {
+            const erasedIndex = this._events.findIndex((event, index) => !event && index > 0);
+            if (erasedIndex > 0) {
+                return erasedIndex;
+            }
+        }
         return this._eventIdSequence++;
     };
 
@@ -494,18 +804,18 @@ function Game_PrefabEvent() {
         return !$gamePlayer.isTransferring() || this.mapId() === $gamePlayer.newMapId();
     };
 
-    Game_Map.prototype.getConditionalValidPosition = function(conditions, algorithm) {
+    Game_Map.prototype.getConditionalValidPosition = function(conditions, algorithm, reverse) {
         if (algorithm === 0) {
             let x, y, count = 0;
             do {
                 x = Math.randomInt($dataMap.width);
                 y = Math.randomInt($dataMap.height);
-            } while (!conditions.every(this.checkValidPosition.bind(this, x, y)) && ++count < 1000);
+            } while (!conditions.every(this.checkValidPosition.bind(this, x, y, reverse)) && ++count < 1000);
             return count < 1000 ? {x: x, y: y} : null;
         } else {
             const positions = [];
             for (let ix = 0; ix < $dataMap.width; ++ix) for (let iy = 0; iy < $dataMap.height; ++iy) {
-                if (conditions.every(this.checkValidPosition.bind(this, ix, iy))) {
+                if (conditions.every(this.checkValidPosition.bind(this, ix, iy, reverse))) {
                     positions.push({x: ix, y: iy});
                 }
             }
@@ -513,8 +823,11 @@ function Game_PrefabEvent() {
         }
     };
 
-    Game_Map.prototype.checkValidPosition = function(x, y, condition) {
-        return condition(x, y);
+    Game_Map.prototype.checkValidPosition = function(x, y, reverse, condition) {
+        if (!this.isValid(x, y)) {
+            return false;
+        }
+        return reverse ? !condition(x, y) : condition(x, y);
     };
 
     Game_Map.prototype.isErsCheckAnyDirectionPassable = function(x, y) {
@@ -599,6 +912,10 @@ function Game_PrefabEvent() {
     Game_PrefabEvent.prototype.locateWithoutStraighten = function(x, y) {
         this.setPosition(x, y);
         this.refreshBushDepth();
+        if (this._movables) {
+            this._initX = this._x;
+            this._initY = this._y;
+        }
     };
 
     // for TemplateEvent.js
@@ -638,10 +955,26 @@ function Game_PrefabEvent() {
             const key = [this._mapId, this._eventId, swCode];
             $gameSelfSwitches.setValue(key, undefined);
         }.bind(this));
+        if (this._selfVariableIndexList) {
+            this._selfVariableIndexList.forEach(index => {
+                this.controlSelfVariable(index, 0, 0, false);
+            });
+        }
     };
 
     Game_PrefabEvent.prototype.getOriginalEventId = function() {
         return this._originalEventId;
+    };
+
+    const _Game_PrefabEvent_controlSelfVariable = Game_PrefabEvent.prototype.controlSelfVariable;
+    Game_PrefabEvent.prototype.controlSelfVariable = function(index, type, operand, formulaFlg) {
+        if (!this._selfVariableIndexList) {
+            this._selfVariableIndexList = [];
+        }
+        if (this._selfVariableIndexList.indexOf(index)) {
+            this._selfVariableIndexList.push(index);
+        }
+        _Game_PrefabEvent_controlSelfVariable.apply(this, arguments);
     };
 
     Game_Event.prototype.getOriginalEventId = function() {
@@ -674,8 +1007,8 @@ function Game_PrefabEvent() {
     //=============================================================================
     const _Spriteset_Map_createCharacters    = Spriteset_Map.prototype.createCharacters;
     Spriteset_Map.prototype.createCharacters = function() {
-        this._prefabSpriteId = Sprite.getCounter() + 1;
         _Spriteset_Map_createCharacters.apply(this, arguments);
+        this._prefabSpriteId = Sprite.getCounter() + 1;
     };
 
     const _Spriteset_Map_update    = Spriteset_Map.prototype.update;
@@ -690,6 +1023,11 @@ function Game_PrefabEvent() {
                 this.makePrefabEventSprite(event);
             }
         }.bind(this));
+        // アニメーション再生中に対象の動的イベントを消去するとエラーになるので暫定対策
+        // 万一、アニメーションが常に再生され続ける環境だとスプライトの消去が永久に行われない可能性がある。
+        if (this.isAnimationPlaying()) {
+            return;
+        }
         for (let i = 0, n = this._characterSprites.length; i < n; i++) {
             if (this._characterSprites[i].isCharacterExtinct()) {
                 this.removePrefabEventSprite(i--);

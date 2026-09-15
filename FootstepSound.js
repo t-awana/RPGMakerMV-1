@@ -6,6 +6,11 @@
 // http://opensource.org/licenses/mit-license.php
 // ----------------------------------------------------------------------------
 // Version
+// 3.2.0 2025/03/15 足音が演奏されるタイミングを選択できる設定を追加
+// 3.1.0 2024/10/13 足音が演奏されるタイミングを変更
+// 3.0.8 2023/12/13 intervalの説明が間違っていたので修正
+// 3.0.7 2022/02/13 足音の優先度に関するヘルプを追記
+// 3.0.6 2021/12/30 FootStepのタグを指定していないイベントの足音が演奏されない問題を修正
 // 3.0.5 2020/09/26 パラメータ「位相」のデフォルト値が100になっていたので0に修正
 // 3.0.3 2020/09/15 イベントの足音を初期状態でプレイヤーと同じにできるメモ欄を追加
 // 3.0.2 2020/09/01 インターバルを2以上にしたとき、他の足音条件を満たしていても通常の足音が演奏されてしまう問題を修正
@@ -108,6 +113,16 @@
  * @type struct<SoundSet>
  * @default {"interval":"1","walk1":"","walk2":"","dash1":"","dash2":""}
  *
+ * @param timing
+ * @text 足音のタイミング
+ * @desc 足音が演奏されるタイミングです。
+ * @default step
+ * @type select
+ * @option パターン変更(キャラクターのパターンが変わった瞬間)
+ * @value pattern
+ * @option 歩数増加(歩き出した瞬間)
+ * @value step
+ *
  * @command INVALID_SOUND
  * @text 足音無効化
  * @desc 一時的に全ての足音を無効にします。
@@ -128,6 +143,9 @@
  * 8.  梯子属性通過時
  * 9.  指定地形タグ通過時
  * 10. 常に
+ *
+ * 優先度の低い足音を優先して演奏させたい場合は
+ * 優先度の高い足音のパラメータを削除してください。
  *
  * 足音が演奏されるのはプレイヤーのみですが、
  * 「移動ルートの指定」の「スクリプト」から以下を実行すると
@@ -158,7 +176,7 @@
 /*~struct~SoundSet:
  * @param interval
  * @text 間隔
- * @desc 足音SEの演奏間隔(秒数)です。0を指定した場合、間隔による判定をしなくなります。
+ * @desc 足音SEの演奏間隔(歩数)です。0を指定した場合、間隔による判定をしなくなります。
  * @type number
  * @default 1
  * @min 0
@@ -228,7 +246,7 @@
  *
  * @param interval
  * @text 間隔
- * @desc 足音SEの演奏間隔(秒数)です。足音の種別ごとに間隔を指定したい場合に使用します。
+ * @desc 足音SEの演奏間隔(歩数)です。足音の種別ごとに間隔を指定したい場合に使用します。
  * @type number
  * @default 0
  * @min 0
@@ -273,24 +291,36 @@
     var _Game_CharacterBase_increaseSteps = Game_CharacterBase.prototype.increaseSteps;
     Game_CharacterBase.prototype.increaseSteps = function () {
         _Game_CharacterBase_increaseSteps.apply(this, arguments);
+        if (param.timing !== 'pattern') {
+            this.callStepSound();
+        }
+    }
+
+    var _Game_CharacterBase_updatePattern = Game_CharacterBase.prototype.updatePattern;
+    Game_CharacterBase.prototype.updatePattern = function () {
+        _Game_CharacterBase_updatePattern.apply(this, arguments);
+        if (param.timing === 'pattern' && (this._pattern === 0 || this._pattern === 2)) {
+            this.callStepSound();
+        }
+    };
+
+    Game_CharacterBase.prototype.callStepSound = function () {
         if (this.isInvalidFootStepSound()) {
             return;
         }
         var soundsHash = [
-            {key: 'airship', condition: this.isInAirship.bind(this)},
-            {key: 'ship', condition: this.isInShip.bind(this)},
-            {key: 'boat', condition: this.isInBoat.bind(this)},
-            {key: 'regionList', condition: findListItem.bind(this, this.regionId())},
-            {key: 'damageFloor', condition: this.isOnDamageFloor.bind(this)},
-            {key: 'bush', condition: this.isOnBush.bind(this)},
-            {key: 'counter', condition: this.isOnCounter.bind(this)},
-            {key: 'ladder', condition: this.isOnLadder.bind(this)},
-            {key: 'terrainTagList', condition: findListItem.bind(this, this.terrainTag())},
-            {key: 'always', condition: this.noCondition.bind(this)}
+            { key: 'airship', condition: this.isInAirship.bind(this) },
+            { key: 'ship', condition: this.isInShip.bind(this) },
+            { key: 'boat', condition: this.isInBoat.bind(this) },
+            { key: 'regionList', condition: findListItem.bind(this, this.regionId()) },
+            { key: 'damageFloor', condition: this.isOnDamageFloor.bind(this) },
+            { key: 'bush', condition: this.isOnBush.bind(this) },
+            { key: 'counter', condition: this.isOnCounter.bind(this) },
+            { key: 'ladder', condition: this.isOnLadder.bind(this) },
+            { key: 'terrainTagList', condition: findListItem.bind(this, this.terrainTag()) },
+            { key: 'always', condition: this.noCondition.bind(this) }
         ];
-        soundsHash.some(function (data) {
-            return this.updateStepSound(data.key, data.condition);
-        }.bind(this));
+        soundsHash.some(data => this.updateStepSound(data.key, data.condition));
     };
 
     Game_CharacterBase.prototype.isInvalidFootStepSound = function () {
@@ -404,7 +434,7 @@
     var _Game_Event_findStepSound = Game_Event.prototype.findStepSound;
     Game_Event.prototype.findStepSound = function (soundHash) {
         var se = _Game_Event_findStepSound.apply(this, arguments);
-        if (se && this._footStepSeName !== true) {
+        if (se && this._footStepSeName && this._footStepSeName !== true) {
             return {
                 name: this._footStepSeName,
                 volume: se.volume,

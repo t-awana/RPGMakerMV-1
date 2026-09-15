@@ -6,6 +6,11 @@
 // http://opensource.org/licenses/mit-license.php
 // ----------------------------------------------------------------------------
 // Version
+// 2.0.5 2025/02/24 config.rmmzsaveが存在しない状態でゲーム開始したとき、ボイス音量のデフォルト値が反映されない問題を修正
+// 2.0.4 2024/11/12 オプションウィンドウの項目数をボイス音量の項目に合わせてひとつ追加
+// 2.0.3 2023/07/27 サブフォルダを指定したボイス停止ができていなかった問題を修正
+// 2.0.2 2022/02/19 ボイスファイルに制御文字\v[n]が指定できるよう修正
+// 2.0.1 2021/05/16 サブフォルダを指定できるよう修正
 // 2.0.0 2021/03/17 MZで動作するよう修正し、仕様を見直し
 // 1.1.3 2020/04/15 1.1.2の修正で同時再生したボイスの停止が動作しない問題を修正
 // 1.1.2 2020/04/08 異なるチャンネルで短い間隔で複数のボイスを再生した場合に、先に再生したボイスが演奏されない問題を修正
@@ -158,11 +163,19 @@
         return config;
     };
 
+    const _ConfigManager_load = ConfigManager.load;
+    ConfigManager.load = function () {
+        this.voiceVolume = param.optionValue;
+        _ConfigManager_load.apply(this, arguments);
+    };
+
     const _ConfigManager_applyData = ConfigManager.applyData;
     ConfigManager.applyData      = function(config) {
         _ConfigManager_applyData.apply(this, arguments);
         const symbol       = 'voiceVolume';
-        this.voiceVolume = config.hasOwnProperty(symbol) ? this.readVolume(config, symbol) : param.optionValue;
+        if (config.hasOwnProperty(symbol)) {
+            this.voiceVolume = this.readVolume(config, symbol);
+        }
     };
 
     //=============================================================================
@@ -173,6 +186,11 @@
     Window_Options.prototype.addVolumeOptions = function() {
         _Window_Options_addVolumeOptions.apply(this, arguments);
         this.addCommand(param.optionName, 'voiceVolume');
+    };
+
+    const _Scene_Options_maxCommands = Scene_Options.prototype.maxCommands;
+    Scene_Options.prototype.maxCommands = function() {
+        return _Scene_Options_maxCommands.apply(this, arguments) + 1;
     };
 
     //=============================================================================
@@ -195,20 +213,25 @@
     AudioManager._voiceBuffers = [];
     AudioManager._voiceVolume  = 100;
     AudioManager.playVoice     = function(voice, loop, channel) {
-        if (voice.name) {
+        const voicePath = PluginManagerEx.convertEscapeCharacters(voice.name);
+        if (voicePath) {
+            const path = ('se/' + voicePath).split('/');
+            const name = path.pop();
+            const folder = path.join('/') + '/';
             this.stopVoice(voice.name, channel);
-            const buffer = this.createBuffer('se/', voice.name);
+            const buffer = this.createBuffer(folder, name);
             this.updateVoiceParameters(buffer, voice);
             buffer.play(loop, 0);
-            buffer.name = voice.name;
+            buffer.path = voicePath;
             buffer.channel = channel;
             this._voiceBuffers.push(buffer);
         }
     };
 
     AudioManager.stopVoice = function(name, channel) {
+        const voicePath = name ? PluginManagerEx.convertEscapeCharacters(name) : null;
         this._voiceBuffers.forEach(function(buffer) {
-            if (!name && !channel || buffer.name === name || buffer.channel === channel) {
+            if (!name && !channel || buffer.path === voicePath || buffer.channel === channel) {
                 buffer.stop();
             }
         });

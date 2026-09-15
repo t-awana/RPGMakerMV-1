@@ -6,6 +6,14 @@
 // http://opensource.org/licenses/mit-license.php
 // ----------------------------------------------------------------------------
 // Version
+// 4.3.4 2025/10/19 ファイルロードを有効にしたときにエラーになる問題を修正
+// 4.3.3 2025/05/05 非表示のコマンドを含む複数のコマンドを定義したとき、コマンドの選択が正常にできない場合がある問題を修正
+// 4.3.2 2025/05/04 プラグインコマンドのパラメータ「インデックス」の説明が分かりづらかったので修正
+// 4.3.1 2025/03/15 ニューゲームの移動先座標を0に指定すると1に移動してしまう問題を修正
+// 4.3.0 2025/02/25 本体v1.9.0のロケーションのダイアログ指定機能に対応
+// 4.2.1 2024/11/24 タイトルヘルププラグインに合わせた調整
+// 4.2.0 2023/06/11 タイトルコマンドのカーソル初期位置を設定、変更できる機能を追加
+// 4.1.0 2023/05/28 タイトル画面で無操作状態が続くと自動で専用ニューゲームを開始できる機能を追加
 // 4.0.2 2021/04/08 orderAfterアノテーションを追加
 // 4.0.1 2020/11/29 ブラウザからの実行でエラーになる問題を修正
 // 4.0.0 2020/11/11 MZ向けに全面的にリファクタリング
@@ -25,8 +33,7 @@
 // 1.0.1 2015/11/10 プラグイン適用中にセーブできなくなる不具合を修正
 // 1.0.0 2015/11/07 初版
 // ----------------------------------------------------------------------------
-// [Blog]   : https://triacontane.blogspot.jp/
-// [Twitter]: https://twitter.com/triacontane/
+// [X]      : https://x.com/triacontane/
 // [GitHub] : https://github.com/triacontane/
 //=============================================================================
 
@@ -43,6 +50,12 @@
  * @desc アナザーニューゲームのコマンド一覧です。
  * @default []
  * @type struct<COMMAND>[]
+ *
+ * @param defaultCursorIndex
+ * @text カーソル初期位置
+ * @desc セーブデータがないときのタイトルコマンドのカーソル初期位置です。0を指定するとデフォルト仕様に準拠します。
+ * @default 0
+ * @type number
  *
  * @command SETTING
  * @text コマンド制御
@@ -63,8 +76,8 @@
  * @value DISABLE
  *
  * @arg index
- * @text コマンドインデックス
- * @desc 操作対象のコマンドインデックスです。(開始位置は0)
+ * @text 操作対象インデックス
+ * @desc 操作対象です。アナザーニューゲームリストで定義したリストの並び順（開始位置は0）を指定します。
  * @type number
  * @default 0
  *
@@ -81,6 +94,16 @@
  * @value VISIBLE
  * @option コマンド非表示
  * @value HIDDEN
+ *
+ * @command SET_DEFAULT_CURSOR
+ * @text カーソル初期位置設定
+ * @desc セーブデータがないときのタイトルコマンドのカーソル初期位置を設定します。
+ *
+ * @arg index
+ * @text カーソル初期位置
+ * @desc カーソル初期位置です。(先頭は0)
+ * @type number
+ * @default 0
  *
  * @help AnotherNewGame.js
  *
@@ -105,23 +128,11 @@
  * @desc タイトル画面に表示されるコマンド名です。
  * @default Another New Game
  *
- * @param mapId
- * @text マップID
- * @desc 移動先のマップIDです。0を指定した場合、場所移動しません。
- * @default 1
- * @type number
- *
- * @param mapX
- * @text X座標
- * @desc 移動先のX座標です。
- * @default 1
- * @type number
- *
- * @param mapY
- * @text Y座標
- * @desc 移動先のY座標です。
- * @default 1
- * @type number
+ * @param location
+ * @text マップ座標
+ * @desc 移動先のマップ座標です。指定がない場合、場所移動しません。指定には本体v1.9.0以上が必要です。
+ * @default {}
+ * @type location
  *
  * @param hidden
  * @text デフォルト非表示
@@ -149,8 +160,14 @@
  * @option オプションの上
  * @value 3
  *
+ * @param demoWaitFrame
+ * @text デモ待機フレーム数
+ * @desc 指定したフレーム数ぶん無操作状態が続いたときに開始します。指定するとコマンドには出現しなくなります。
+ * @default 0
+ * @type number
+ *
  * @param switchId
- * @text 開始時にONになるスイッチ
+ * @text 開始時有効スイッチ
  * @desc アナザーニューゲーム開始時に自動でONになるスイッチを指定できます。
  * @default 0
  * @type switch
@@ -200,6 +217,11 @@
         ANGSettingManager.save();
     });
 
+    PluginManagerEx.registerCommand(script, 'SET_DEFAULT_CURSOR', args => {
+        ANGSettingManager.setDefaultCursorIndex(args.index);
+        ANGSettingManager.save();
+    });
+
     //=============================================================================
     // Game_Map
     //  アナザーニューゲームのロード時に実行していたイベントを中断します。
@@ -235,12 +257,50 @@
         localExtraStageIndex = -1;
     };
 
+    const _Scene_Title_selectLast    = Window_TitleCommand.prototype.selectLast;
+    Window_TitleCommand.prototype.selectLast = function() {
+        const index = ANGSettingManager._defaultCursorIndex;
+        if (index > 0) {
+            this.select(index);
+        }
+        _Scene_Title_selectLast.apply(this, arguments);
+    };
+
+    const _Scene_Title_update = Scene_Title.prototype.update;
+    Scene_Title.prototype.update = function() {
+        _Scene_Title_update.apply(this, arguments);
+        if (!this.isBusy() && !this._callAnotherNewGame) {
+            this.updateWait();
+        }
+    };
+
+    Scene_Title.prototype.updateWait = function() {
+        if (this._commandWindowIndex !== this._commandWindow.index()) {
+            this._commandWindowIndex = this._commandWindow.index();
+            this._waitFrame = 0;
+        } else {
+            this._waitFrame++;
+        }
+        ANGSettingManager.findList(true).forEach(command => {
+            if (this._waitFrame >= command.demoWaitFrame) {
+                this.callAnotherNewGame(command);
+            }
+        });
+        if (this._callAnotherNewGame) {
+            this._commandWindow.open();
+            this._commandWindow.deactivate();
+        }
+    };
+
     const _Scene_Title_commandNewGameSecond    = Scene_Title.prototype.commandNewGameSecond;
-    Scene_Title.prototype.commandNewGameSecond = function(index) {
+    Scene_Title.prototype.commandNewGameSecond = function(index, command) {
         if (_Scene_Title_commandNewGameSecond) {
             _Scene_Title_commandNewGameSecond.apply(this, arguments);
         }
-        const command = parameters.anotherDataList[index];
+        this.callAnotherNewGame(command, index);
+    };
+
+    Scene_Title.prototype.callAnotherNewGame = function(command, index) {
         if (command.noFadeout) {
             this._noFadeout = true;
         }
@@ -248,11 +308,11 @@
             const preMapId  = $dataSystem.startMapId;
             const preStartX = $dataSystem.startX;
             const preStartY = $dataSystem.startY;
-            const newMapId  = command.mapId;
-            if (newMapId > 0) {
-                $dataSystem.startMapId = newMapId;
-                $dataSystem.startX     = command.mapX || 1;
-                $dataSystem.startY     = command.mapY || 1;
+            const location  = command.location;
+            if (location) {
+                $dataSystem.startMapId = location.mapId;
+                $dataSystem.startX     = location.x || 0;
+                $dataSystem.startY     = location.y || 0;
             }
             this.commandNewGame();
             $dataSystem.startMapId = preMapId;
@@ -266,17 +326,17 @@
             this.commandContinue();
             localExtraStageIndex = index;
         }
+        this._callAnotherNewGame = true;
     };
 
     const _Scene_Title_createCommandWindow    = Scene_Title.prototype.createCommandWindow;
     Scene_Title.prototype.createCommandWindow = function() {
         _Scene_Title_createCommandWindow.call(this);
-        parameters.anotherDataList.forEach((command, index) => {
-            if (ANGSettingManager.isVisible(index)) {
-                this._commandWindow.setHandler('nameGame2_' + index,
-                    this.commandNewGameSecond.bind(this, index));
-            }
-        }, this);
+        ANGSettingManager.findList(false).forEach(command => {
+            const index = parameters.anotherDataList.indexOf(command);
+            this._commandWindow.setHandler('nameGame2_' + index,
+                this.commandNewGameSecond.bind(this, index, command));
+        });
     };
 
     Scene_Title.prototype.fadeOutAll = function() {
@@ -316,11 +376,10 @@
     const _Window_TitleCommand_makeCommandList    = Window_TitleCommand.prototype.makeCommandList;
     Window_TitleCommand.prototype.makeCommandList = function() {
         _Window_TitleCommand_makeCommandList.call(this);
-        parameters.anotherDataList.forEach(function(command, index) {
-            if (ANGSettingManager.isVisible(index)) {
-                this.makeAnotherNewGameCommand(command, index);
-            }
-        }, this);
+        ANGSettingManager.findList(false).forEach(command => {
+            const index = parameters.anotherDataList.indexOf(command);
+            this.makeAnotherNewGameCommand(command, index);
+        });
         if (ANGSettingManager.newGameHidden) {
             this.eraseCommandNewGame();
         }
@@ -364,12 +423,14 @@
     ANGSettingManager._visibleList  = [];
     ANGSettingManager._enableList   = [];
     ANGSettingManager.newGameHidden = false;
+    ANGSettingManager._defaultCursorIndex = parameters.defaultCursorIndex;
 
     ANGSettingManager.make = function() {
         const info         = {};
         info.visibleList   = this._visibleList;
         info.enableList    = this._enableList;
         info.newGameHidden = this.newGameHidden;
+        info.cursorIndex   = this._defaultCursorIndex;
         return info;
     };
 
@@ -393,15 +454,26 @@
         }
     };
 
+    ANGSettingManager.findList = function (waitFlag) {
+        return parameters.anotherDataList.filter((command, index) => {
+            return this.isVisible(index) && command.demoWaitFrame > 0 === waitFlag;
+        });
+    }
+
     ANGSettingManager.setEnable = function(index, value) {
         this._enableList[index] = value;
     };
+
+    ANGSettingManager.setDefaultCursorIndex = function(index) {
+        this._defaultCursorIndex = index;
+    }
 
     ANGSettingManager.loadData = function() {
         StorageManager.loadObject(this._fileName).then(info => {
             this._visibleList  = info.visibleList || [];
             this._enableList   = info.enableList || [];
             this.newGameHidden = !!info.newGameHidden;
+            this._defaultCursorIndex = info.cursorIndex || parameters.defaultCursorIndex;
             this._loaded       = true;
         }).catch(() => {
             this._loaded = true;

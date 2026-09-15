@@ -1,11 +1,23 @@
 //=============================================================================
 // AccumulateState.js
 // ----------------------------------------------------------------------------
-// Copyright (c) 2015 Triacontane
+// (C)2016 Triacontane
 // This software is released under the MIT License.
 // http://opensource.org/licenses/mit-license.php
 // ----------------------------------------------------------------------------
 // Version
+// 2.8.0final 2026/08/02 敵キャラが変身したときにステート蓄積をリセットできる機能を追加
+// 2.7.1 2026/06/11 同一ステートを対象にした変数設定を複数登録している場合、すべての設定に蓄積値が反映されるよう修正
+// 2.7.0 2026/05/10 任意の蓄積値を変数に格納できる機能を追加しました。他プラグインと組み合わせて蓄積情報を可視化できます。
+// 2.6.0 2025/04/07 蓄積された免疫状態を解除するコマンドを追加
+// 2.5.0 2024/04/10 蓄積ステートの解除条件に「戦闘終了時に解除」がある場合、蓄積率も同時にリセットできる機能を追加
+// 2.4.2 2023/02/12 プラグイン未適用のセーブデータをロードしたときエラーになる場合がある問題を修正
+// 2.4.1 2022/05/25 2.4.0の修正で不要なゲージが表示される場合がある問題を修正
+// 2.4.0 2022/03/18 マップ画面とステータス画面に蓄積ゲージを表示できるよう修正
+// 2.3.0 2021/07/23 敵キャラに対しても蓄積ゲージを表示できる機能を追加
+// 2.2.1 2021/07/16 蓄積型ステートが有効になるごとに耐性が上昇する機能を追加
+// 2.2.0 2021/07/15 MZで動作するよう全面的に修正
+// 2.1.0 2021/07/15 蓄積ゲージ表示の有無をスイッチで切り替えられる機能を追加
 // 2.0.0 2017/05/29 蓄積率計算式を独自に指定できるよう仕様変更。運補正と必中補正の有無を設定できる機能を追加
 // 1.1.1 2017/05/28 減算の結果が負の値になったときに蓄積率が減算されていた問題を修正
 // 1.1.0 2017/05/28 耐性計算式を除算と減算の二つを用意しました。
@@ -19,30 +31,115 @@
 
 /*:
  * @plugindesc 蓄積型ステートプラグイン
- * @target MZ @url https://github.com/triacontane/RPGMakerMV/tree/mz_master @author トリアコンタン
+ * @target MZ
+ * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/AccumulateState.js
+ * @base PluginCommonBase
+ * @orderAfter PluginCommonBase
+ * @author トリアコンタン
  *
- * @param ゲージ画像ファイル
+ * @param GaugeImage
+ * @text ゲージ画像ファイル
  * @desc ゲージ表示に使用する画像ファイル(img/pictures)です。空のゲージと満タンのゲージを縦に並べて一つの画像にしてください。
  * @default
- * @require 1
  * @dir img/pictures/
  * @type file
  *
- * @param 蓄積率計算式
+ * @param GaugeSwitchId
+ * @text ゲージ表示スイッチ
+ * @desc 有効にすると指定したスイッチがONのときだけゲージ表示されます。
+ * @default 0
+ * @type switch
+ *
+ * @param AccumulateFormula
+ * @text 蓄積率計算式
  * @desc 蓄積率を算出する計算式を効果の「ステート付加」および対象の「ステート有効度」から独自作成します。
  * @default
  *
- * @param 運補正
+ * @param LuckAdjust
+ * @text 運補正
  * @desc ONにすると蓄積率に対して運による補正を掛けます。（デフォルト仕様準拠）
- * @default ON
+ * @default true
+ * @type boolean
  *
- * @param 必中時有効度無視
+ * @param CertainHit
+ * @text 必中時有効度無視
  * @desc ONにすると必中スキルに関しては「ステート付加」の値がそのまま蓄積率に反映されます。
- * @default ON
+ * @default true
+ * @type boolean
  *
- * @help 特定のステートを蓄積型に変更します。
+ * @param ImmunityRate
+ * @text 免疫率
+ * @desc ステートが有効になるごとに加算される耐性値です。100になると一切、上昇しなくなります。
+ * @default 0
+ * @type number
+ *
+ * @param ResetAccumulateEndBattle
+ * @text 戦闘終了時にリセット
+ * @desc 蓄積ステートの解除条件「戦闘終了時に解除」が有効な場合、戦闘終了時に蓄積率をリセットします。
+ * @default false
+ * @type boolean
+ *
+ * @param ResetAccumulateTransform
+ * @text 変身時にリセット
+ * @desc 敵キャラが変身したとき、蓄積率をリセットします。
+ * @default false
+ * @type boolean
+ *
+ * @param VariableList
+ * @text 変数リスト
+ * @desc 蓄積値を格納する変数のリストです。対象の並び順とステートIDを指定してください。
+ * @default []
+ * @type struct<Variable>[]
+ *
+ * @command ACCUMULATE
+ * @text 蓄積
+ * @desc 指定したアクターのステート蓄積量を増減します。
+ *
+ * @arg actorId
+ * @text アクターID
+ * @desc 対象のアクターIDです。敵キャラを対象にする場合は0のままでOKです。
+ * @default 0
+ * @type actor
+ *
+ * @arg enemyIndex
+ * @text 敵キャラインデックス
+ * @desc 対象の敵キャラインデックスです。アクターを対象にする場合は-1のままでOKです。
+ * @default -1
+ * @type number
+ * @min -1
+ *
+ * @arg stateId
+ * @text ステートID
+ * @desc 対象のステートIDです。蓄積型のステートを指定してください。
+ * @default 1
+ * @type state
+ *
+ * @arg rate
+ * @text 蓄積率
+ * @desc 蓄積率(-100% ～ 100%)です。
+ * @default 0
+ * @type number
+ * @min -100
+ * @max 100
+ *
+ * @command CLEAR_IMMUNITY
+ * @text 免疫状態解除
+ * @desc 指定したアクターのステート免疫状態を解除します。
+ *
+ * @arg actorId
+ * @text アクターID
+ * @desc 対象のアクターIDです。0を指定した場合、パーティメンバ全員の免疫状態を解除します。
+ * @default 0
+ * @type actor
+ *
+ * @help
+ *
+ * このプラグインはこれ以上の機能追加は行いません。
+ *
+ * 特定のステートを蓄積型に変更します。
  * 蓄積型のステートにしたい場合、メモ欄に以下の通り設定してください。
- * <AS蓄積型>
+ * <蓄積型>
+ * <Accumulate>
  *
  * 蓄積型ステートは使用効果「ステート付加」によって値が蓄積していき、
  * 蓄積率が100%(=1.0)を超えると対象のステートが有効になります。
@@ -72,20 +169,17 @@
  *
  * ステートをひとつだけ指定して戦闘画面にゲージとして表示することができます。
  * この機能を使う場合は、アクターのメモ欄に以下の通り設定してください。
- * <ASゲージステート:3> // 蓄積型のステートID「3」をゲージとして表示します。
- * <ASゲージX:600>      // ゲージのX座標です。
- * <ASゲージY:400>      // ゲージのY座標です。
+ * <蓄積ゲージステート:3> // 蓄積型のステートID「3」をゲージとして表示します。
+ * <蓄積ゲージX:600>      // ゲージのX座標です。
+ * <蓄積ゲージY:400>      // ゲージのY座標です。
  *
- * ゲージ画像はパラメータとして指定したものを使用します。
+ * マップ画面、ステータス画面にゲージを表示したい場合は座標を指定してください。
+ * <蓄積マップゲージX:600> // マップ画面のゲージのX座標です。
+ * <蓄積マップゲージY:400> // マップ画面のゲージのY座標です。
+ * <蓄積ステータスゲージX:600> // ステータス画面のゲージのX座標です。
+ * <蓄積ステータスゲージY:400> // ステータス画面のゲージのY座標です。
  *
- * プラグインコマンド詳細
- *  イベントコマンド「プラグインコマンド」から実行。
- *  （パラメータの間は半角スペースで区切る）
- *
- * ASステート蓄積 [アクターID] [ステートID] [蓄積量]
- *  指定したアクターのステート蓄積量を増減します。
- *  例:ASステート蓄積 1 3 50
- *  ID「1」のアクターにID「3」のステート蓄積量を50%増やします。
+ * ゲージ画像はパラメータで指定したものを使用します。
  *
  * 利用規約：
  *  作者に無断で改変、再配布が可能で、利用形態（商用、18禁利用等）
@@ -93,123 +187,68 @@
  *  このプラグインはもうあなたのものです。
  */
 
-(function () {
+/*~struct~Variable:
+ * @param variableId
+ * @text 変数ID
+ * @desc 蓄積値を格納する変数IDです。
+ * @default 0
+ * @type variable
+ *
+ * @param target
+ * @text 対象
+ * @desc 蓄積値を取得する対象(アクター or 敵キャラ)です。
+ * @default actor
+ * @type select
+ * @option アクター
+ * @value actor
+ * @option 敵キャラ
+ * @value enemy
+ *
+ * @param index
+ * @text 対象の並び順
+ * @desc 蓄積値を取得する並び順です。先頭のバトラーであれば0を指定します。
+ * @default 0
+ * @type number
+ *
+ * @param stateId
+ * @text ステートID
+ * @desc 蓄積値を格納する対象のステートIDです。蓄積型のステートを指定してください。
+ * @default 1
+ * @type state
+ *
+ */
+
+(()=>{
     'use strict';
-    var pluginName = 'AccumulateState';
-    var metaTagPrefix = 'AS';
+    const script = document.currentScript;
+    const param = PluginManagerEx.createParameter(script);
+    if (!param.VariableList) {
+        param.VariableList = [];
+    }
 
-    var getCommandName = function (command) {
-        return (command || '').toUpperCase();
-    };
-
-    var getParamOther = function (paramNames) {
-        if (!Array.isArray(paramNames)) paramNames = [paramNames];
-        for (var i = 0; i < paramNames.length; i++) {
-            var name = PluginManager.parameters(pluginName)[paramNames[i]];
-            if (name) return name;
+    PluginManagerEx.registerCommand(script, 'ACCUMULATE', args => {
+        const actor = $gameActors.actor(args.actorId);
+        if (actor) {
+            actor.accumulateState(args.stateId, args.rate / 100);
         }
-        return null;
-    };
-
-    var getParamBoolean = function (paramNames) {
-        var value = getParamOther(paramNames);
-        return value.toUpperCase() === 'ON';
-    };
-
-    var getParamString = function (paramNames) {
-        var value = getParamOther(paramNames);
-        return value === null ? '' : value;
-    };
-
-    var getMetaValue = function (object, name) {
-        var metaTagName = metaTagPrefix + (name ? name : '');
-        return object.meta.hasOwnProperty(metaTagName) ? object.meta[metaTagName] : undefined;
-    };
-
-    var getMetaValues = function (object, names) {
-        if (!Array.isArray(names)) return getMetaValue(object, names);
-        for (var i = 0, n = names.length; i < n; i++) {
-            var value = getMetaValue(object, names[i]);
-            if (value !== undefined) return value;
+        const enemy = $gameTroop.members()[args.enemyIndex];
+        if (enemy) {
+            enemy.accumulateState(args.stateId, args.rate / 100);
         }
-        return undefined;
-    };
+    });
 
-    var getArgNumber = function (arg, min, max) {
-        if (arguments.length < 2) min = -Infinity;
-        if (arguments.length < 3) max = Infinity;
-        return (parseInt(convertEscapeCharactersAndEval(arg, true), 10) || 0).clamp(min, max);
-    };
-
-    var convertEscapeCharactersAndEval = function (text, evalFlg) {
-        if (text === null || text === undefined) {
-            text = evalFlg ? '0' : '';
-        }
-        text = text.replace(/\\/g, '\x1b');
-        text = text.replace(/\x1b\x1b/g, '\\');
-        text = text.replace(/\x1bV\[(\d+)\]/gi, function () {
-            return $gameVariables.value(parseInt(arguments[1]));
-        }.bind(this));
-        text = text.replace(/\x1bV\[(\d+)\]/gi, function () {
-            return $gameVariables.value(parseInt(arguments[1]));
-        }.bind(this));
-        text = text.replace(/\x1bN\[(\d+)\]/gi, function () {
-            var actor = parseInt(arguments[1]) >= 1 ? $gameActors.actor(parseInt(arguments[1])) : null;
-            return actor ? actor.name() : '';
-        }.bind(this));
-        text = text.replace(/\x1bP\[(\d+)\]/gi, function () {
-            var actor = parseInt(arguments[1]) >= 1 ? $gameParty.members()[parseInt(arguments[1]) - 1] : null;
-            return actor ? actor.name() : '';
-        }.bind(this));
-        text = text.replace(/\x1bG/gi, TextManager.currencyUnit);
-        return evalFlg ? eval(text) : text;
-    };
-
-    //=============================================================================
-    // パラメータの取得と整形
-    //=============================================================================
-    var paramGaugeImage = getParamString(['GaugeImage', 'ゲージ画像ファイル']);
-    var paramAccumulateFormula = getParamString(['AccumulateFormula', '蓄積率計算式']);
-    var paramLuckAdjust = getParamBoolean(['LuckAdjust', '運補正']);
-    var paramCertainHit = getParamBoolean(['CertainHit', '必中時有効度無視']);
-
-    //=============================================================================
-    // Game_Interpreter
-    //  プラグインコマンドを追加定義します。
-    //=============================================================================
-    var _Game_Interpreter_pluginCommand = Game_Interpreter.prototype.pluginCommand;
-    Game_Interpreter.prototype.pluginCommand = function (command, args) {
-        _Game_Interpreter_pluginCommand.apply(this, arguments);
-        try {
-            this.pluginCommandAccumulateState(command, args);
-        } catch (e) {
-            if ($gameTemp.isPlaytest() && Utils.isNwjs()) {
-                var window = require('nw.gui').Window.get();
-                if (!window.isDevToolsOpen()) {
-                    var devTool = window.showDevTools();
-                    devTool.moveTo(0, 0);
-                    devTool.resizeTo(window.screenX + window.outerWidth, window.screenY + window.outerHeight);
-                    window.focus();
-                }
+    PluginManagerEx.registerCommand(script, 'CLEAR_IMMUNITY', args => {
+        if (args.actorId > 0) {
+            const actor = $gameActors.actor(args.actorId);
+            if (actor) {
+                actor.clearImmunity();
             }
-            console.log('プラグインコマンドの実行中にエラーが発生しました。');
-            console.log('- コマンド名 　: ' + command);
-            console.log('- コマンド引数 : ' + args);
-            console.log('- エラー原因   : ' + e.stack || e.toString());
+        } else {
+            $gameParty.members().forEach(actor => {
+                actor.clearImmunity();
+            });
         }
-    };
-
-    Game_Interpreter.prototype.pluginCommandAccumulateState = function (command, args) {
-        switch (getCommandName(command)) {
-            case metaTagPrefix + 'ステート蓄積' :
-            case metaTagPrefix + 'AccumulateState' :
-                var actorId = getArgNumber(args[0], 1);
-                var stateId = getArgNumber(args[1], 1);
-                var accumulation = getArgNumber(args[2]) / 100;
-                $gameActors.actor(actorId).accumulateState(stateId, accumulation);
-                break;
-        }
-    };
+    });
 
     //=============================================================================
     // Game_BattlerBase
@@ -219,47 +258,84 @@
         if (!this._stateAccumulations) {
             this._stateAccumulations = {};
         }
+        if (!this._stateImmunity) {
+            this.clearImmunity();
+        }
     };
 
-    var _Game_BattlerBase_clearStates = Game_BattlerBase.prototype.clearStates;
+    Game_BattlerBase.prototype.clearImmunity = function () {
+        this._stateImmunity = {};
+    };
+
+    const _Game_BattlerBase_clearStates = Game_BattlerBase.prototype.clearStates;
     Game_BattlerBase.prototype.clearStates = function () {
         _Game_BattlerBase_clearStates.apply(this, arguments);
         this.clearStateAccumulationsIfNeed();
     };
 
-    var _Game_BattlerBase_eraseState = Game_BattlerBase.prototype.eraseState;
+    const _Game_BattlerBase_eraseState = Game_BattlerBase.prototype.eraseState;
     Game_BattlerBase.prototype.eraseState = function (stateId) {
         _Game_BattlerBase_eraseState.apply(this, arguments);
         this.clearStateAccumulationsIfNeed();
         delete this._stateAccumulations[stateId];
     };
 
-    var _Game_Battler_removeState = Game_Battler.prototype.removeState;
+    const _Game_Battler_removeState = Game_Battler.prototype.removeState;
     Game_Battler.prototype.removeState = function (stateId) {
         _Game_Battler_removeState.apply(this, arguments);
         this.clearStateAccumulationsIfNeed();
         delete this._stateAccumulations[stateId];
     };
 
-    var _Game_BattlerBase_attackStates = Game_BattlerBase.prototype.attackStates;
+    const _Game_BattlerBase_attackStates = Game_BattlerBase.prototype.attackStates;
     Game_BattlerBase.prototype.attackStates = function (accumulateFlg) {
         if (arguments.length === 0) accumulateFlg = false;
-        var states = _Game_BattlerBase_attackStates.apply(this, arguments);
+        const states = _Game_BattlerBase_attackStates.apply(this, arguments);
         return states.filter(function (stateId) {
             return BattleManager.isStateAccumulate(stateId) === accumulateFlg;
         }.bind(this));
     };
 
-    Game_BattlerBase.prototype.accumulateState = function (stateId, value) {
+    Game_Battler.prototype.accumulateState = function (stateId, value) {
         this.clearStateAccumulationsIfNeed();
         if (BattleManager.isStateAccumulate(stateId)) {
             this._stateAccumulations[stateId] = (this._stateAccumulations[stateId] || 0) + value;
+            this.updateAccumulateVariable(stateId);
             if (!this.isStateAffected(stateId) && this._stateAccumulations[stateId] >= 1.0) {
                 this.addState(stateId);
+                this._stateImmunity[stateId] = (this._stateImmunity[stateId] || 0) + 1;
                 return true;
             }
         }
         return false;
+    };
+
+    Game_Battler.prototype.updateAccumulateVariable = function(stateId) {
+        const list = param.VariableList.filter(info => info.stateId === stateId);
+        list.forEach(info => {
+            const unit = info.target === 'actor' ? $gameParty : $gameTroop;
+            const battler = unit.members()[info.index];
+            if (battler === this) {
+                $gameVariables.setValue(info.variableId, battler.getStateAccumulation(stateId) * 100);
+            }
+        });
+    };
+
+    const _Game_Battler_removeBattleStates = Game_Battler.prototype.removeBattleStates;
+    Game_Battler.prototype.removeBattleStates = function() {
+        _Game_Battler_removeBattleStates.apply(this, arguments);
+        if (param.ResetAccumulateEndBattle) {
+            for (const stateId in this._stateAccumulations) {
+                const state = $dataStates[stateId];
+                if (state.removeAtBattleEnd && this._stateAccumulations[stateId] > 0) {
+                    this._stateAccumulations[stateId] = 0
+                }
+            }
+        }
+    };
+
+    Game_BattlerBase.prototype.getStateImmunity = function (stateId) {
+        return (this._stateImmunity[stateId] * param.ImmunityRate / 100) || 0;
     };
 
     Game_BattlerBase.prototype.getStateAccumulation = function (stateId) {
@@ -271,19 +347,23 @@
     };
 
     Game_BattlerBase.prototype.getGaugeX = function () {
-        return this.getGaugeInfo(['ゲージX', '_GaugeX']);
+        return this.getGaugeInfo(SceneManager.findAccumulateGaugeTagX());
     };
 
     Game_BattlerBase.prototype.getGaugeY = function () {
-        return this.getGaugeInfo(['ゲージY', '_GaugeY']);
+        return this.getGaugeInfo(SceneManager.findAccumulateGaugeTagY());
     };
 
     Game_BattlerBase.prototype.getGaugeStateId = function () {
-        return this.getGaugeInfo(['ゲージステート', '_GaugeState']);
+        return this.getGaugeInfo(['蓄積ゲージステート', 'AccumulateGaugeState']);
     };
 
     Game_BattlerBase.prototype.getGaugeInfo = function (names) {
-        return getArgNumber(getMetaValues(this.getData(), names)) || 0;
+        return PluginManagerEx.findMetaValue(this.getData(), names);
+    };
+
+    Game_BattlerBase.prototype.getData = function () {
+        return null;
     };
 
     Game_Actor.prototype.getData = function () {
@@ -294,29 +374,72 @@
         return this.enemy();
     };
 
+    const _Game_Enemy_transform = Game_Enemy.prototype.transform;
+    Game_Enemy.prototype.transform = function(enemyId) {
+        _Game_Enemy_transform.apply(this, arguments);
+        if (param.ResetAccumulateTransform) {
+            this.clearStateAccumulationsIfNeed();
+            this._stateAccumulations = {};
+        }
+    };
+
+    const _Game_System_onAfterLoad = Game_System.prototype.onAfterLoad;
+    Game_System.prototype.onAfterLoad = function() {
+        _Game_System_onAfterLoad.apply(this, arguments);
+        $gameActors.clearStateAccumulationsIfNeed();
+    };
+
+    Game_Actors.prototype.clearStateAccumulationsIfNeed = function() {
+        this._data.forEach(actor => {
+            if (actor) {
+                actor.clearStateAccumulationsIfNeed();
+            }
+        });
+    };
+
+    SceneManager.findAccumulateGaugeTagX = function() {
+        if (this._scene instanceof Scene_Map) {
+            return ['蓄積マップゲージX', 'AccumulateMapGaugeX'];
+        }
+        if (this._scene instanceof Scene_Status) {
+            return ['蓄積ステータスゲージX', 'AccumulateStatusGaugeX'];
+        }
+        return ['蓄積ゲージX', 'AccumulateGaugeX'];
+    };
+
+    SceneManager.findAccumulateGaugeTagY = function() {
+        if (this._scene instanceof Scene_Map) {
+            return ['蓄積マップゲージY', 'AccumulateMapGaugeY'];
+        }
+        if (this._scene instanceof Scene_Status) {
+            return ['蓄積ステータスゲージY', 'AccumulateStatusGaugeY'];
+        }
+        return ['蓄積ゲージY', 'AccumulateGaugeY'];
+    };
+
     //=============================================================================
     // Game_Action
     //  行動によってステート蓄積量を増やします。
     //=============================================================================
-    var _Game_Action_itemEffectAddAttackState = Game_Action.prototype.itemEffectAddAttackState;
+    const _Game_Action_itemEffectAddAttackState = Game_Action.prototype.itemEffectAddAttackState;
     Game_Action.prototype.itemEffectAddAttackState = function (target, effect) {
         _Game_Action_itemEffectAddAttackState.apply(this, arguments);
-        this.subject().attackStates(true).forEach(function (stateId) {
-            var accumulation = effect.value1 * this.subject().attackStatesRate(stateId);
+        this.subject().attackStates(true).forEach(stateId => {
+            let accumulation = effect.value1 * this.subject().attackStatesRate(stateId);
             accumulation = this.applyResistanceForAccumulateState(accumulation, target, stateId);
-            var result = target.accumulateState(stateId, accumulation);
+            const result = target.accumulateState(stateId, accumulation);
             if (result) this.makeSuccess(target);
-        }.bind(this), target);
+        });
     };
 
-    var _Game_Action_itemEffectAddNormalState = Game_Action.prototype.itemEffectAddNormalState;
+    const _Game_Action_itemEffectAddNormalState = Game_Action.prototype.itemEffectAddNormalState;
     Game_Action.prototype.itemEffectAddNormalState = function (target, effect) {
         if (BattleManager.isStateAccumulate(effect.dataId)) {
-            var accumulation = effect.value1;
-            if (!this.isCertainHit() || !paramCertainHit) {
+            let accumulation = effect.value1;
+            if (!this.isCertainHit() || !param.CertainHit) {
                 accumulation = this.applyResistanceForAccumulateState(accumulation, target, effect.dataId);
             }
-            var result = target.accumulateState(effect.dataId, accumulation);
+            const result = target.accumulateState(effect.dataId, accumulation);
             if (result) this.makeSuccess(target);
         } else {
             _Game_Action_itemEffectAddNormalState.apply(this, arguments);
@@ -324,22 +447,23 @@
     };
 
     Game_Action.prototype.applyResistanceForAccumulateState = function (effectValue, target, stateId) {
-        if (paramAccumulateFormula) {
-            var a = effectValue;
-            var b = target.stateRate(stateId);
+        if (param.AccumulateFormula) {
+            const a = effectValue;
+            const b = target.stateRate(stateId);
             try {
-                effectValue = eval(paramAccumulateFormula);
+                effectValue = eval(param.AccumulateFormula);
             } catch (e) {
                 SoundManager.playBuzzer();
-                console.warn('Script Error : ' + paramAccumulateFormula);
+                console.warn('Script Error : ' + param.AccumulateFormula);
                 console.warn(e.stack);
             }
         } else {
             effectValue *= target.stateRate(stateId);
         }
-        if (paramLuckAdjust) {
+        if (param.LuckAdjust) {
             effectValue *= this.lukEffectRate(target);
         }
+        effectValue *= (1.0 - target.getStateImmunity(stateId));
         return effectValue.clamp(0.0, 1.0);
     };
 
@@ -348,25 +472,44 @@
     //  蓄積型のステートかどうかを判定します。
     //=============================================================================
     BattleManager.isStateAccumulate = function (stateId) {
-        return stateId > 0 && !!getMetaValues($dataStates[stateId], ['蓄積型', 'Accumulation']);
+        return stateId > 0 && !!PluginManagerEx.findMetaValue($dataStates[stateId], ['蓄積型', 'Accumulate']);
     };
 
     //=============================================================================
     // Scene_Base
     //  ステートゲージを作成します。
     //=============================================================================
-    Scene_Battle.prototype.createAccumulateState = function () {
-        this._characterPictures = {};
-        for (var i = 0, n = $gameParty.members().length; i < n; i++) {
-            var sprite = new Sprite_AccumulateState(i);
+    Scene_Battle.prototype.createAccumulateState = function (detailMenu) {
+        Scene_Base.prototype.createAccumulateState.call(this, detailMenu);
+        for (let i = 0, n = $gameTroop.members().length; i < n; i++) {
+            const sprite = new Sprite_AccumulateState(i, $gameTroop, false);
             this.addChild(sprite);
         }
     };
 
-    var _Scene_Battle_createSpriteset = Scene_Battle.prototype.createSpriteset;
+    Scene_Base.prototype.createAccumulateState = function (detailMenu) {
+        for (let i = 0, n = $gameParty.members().length; i < n; i++) {
+            const sprite = new Sprite_AccumulateState(i, $gameParty, detailMenu);
+            this.addChild(sprite);
+        }
+    };
+
+    const _Scene_Battle_createSpriteset = Scene_Battle.prototype.createSpriteset;
     Scene_Battle.prototype.createSpriteset = function () {
         _Scene_Battle_createSpriteset.apply(this, arguments);
-        this.createAccumulateState();
+        this.createAccumulateState(false);
+    };
+
+    const _Scene_Map_createSpriteset = Scene_Map.prototype.createSpriteset;
+    Scene_Map.prototype.createSpriteset = function () {
+        _Scene_Map_createSpriteset.apply(this, arguments);
+        this.createAccumulateState(false);
+    };
+
+    const _Scene_Status_create = Scene_Status.prototype.create;
+    Scene_Status.prototype.create = function() {
+        _Scene_Status_create.apply(this, arguments);
+        this.createAccumulateState(true);
     };
 
     //=============================================================================
@@ -380,20 +523,22 @@
     Sprite_AccumulateState.prototype = Object.create(Sprite.prototype);
     Sprite_AccumulateState.prototype.constructor = Sprite_AccumulateState;
 
-    Sprite_AccumulateState.prototype.initialize = function (index) {
+    Sprite_AccumulateState.prototype.initialize = function (index, unit, detailMenu) {
         this._index = index;
-        this._actor = null;
+        this._battler = null;
+        this._unit = unit;
         this._rate = null;
+        this._detailMenu = detailMenu;
         Sprite.prototype.initialize.call(this);
         this.create();
     };
 
-    Sprite_AccumulateState.prototype.getActor = function () {
-        return $gameParty.members()[this._index];
+    Sprite_AccumulateState.prototype.getBattler = function () {
+        return this._unit.members()[this._index];
     };
 
     Sprite_AccumulateState.prototype.create = function () {
-        this.bitmap = ImageManager.loadPicture(paramGaugeImage, 0);
+        this.bitmap = ImageManager.loadPicture(param.GaugeImage);
         this.createGaugeSprite();
         this.bitmap.addLoadListener(this.onLoadBitmap.bind(this));
         this.visible = false;
@@ -406,23 +551,40 @@
     };
 
     Sprite_AccumulateState.prototype.onLoadBitmap = function () {
-        var height = this.bitmap.height / 2;
+        const height = this.bitmap.height / 2;
         this.setFrame(0, height, this.bitmap.width, height);
         this._gaugeSprite.setFrame(0, 0, this.bitmap.width, height);
     };
 
     Sprite_AccumulateState.prototype.update = function () {
-        var actor = this.getActor();
-        if (!actor) return;
-        if (this._actor !== actor) {
-            this._actor = actor;
-            this.refresh();
+        const battler = this.getBattler();
+        if (!battler) return;
+        if (this._battler !== battler) {
+            this._battler = battler;
         }
-        this.updateRate();
+        this.updateVisibility();
+        if (this.visible) {
+            this.updatePosition();
+            this.updateRate();
+        }
+    };
+
+    Sprite_AccumulateState.prototype.updateVisibility = function () {
+        this.visible = true;
+        const stateId = this._battler.getGaugeStateId();
+        if (!stateId) {
+            this.visible = false;
+        }
+        if (param.GaugeSwitchId && !$gameSwitches.value(param.GaugeSwitchId)) {
+            this.visible = false;
+        }
+        if (this._detailMenu && $gameParty.menuActor() !== this._battler) {
+            this.visible = false;
+        }
     };
 
     Sprite_AccumulateState.prototype.updateRate = function () {
-        var rate = Math.min(this._actor.getGaugeStateAccumulation(), 1.0);
+        const rate = Math.min(this._battler.getGaugeStateAccumulation(), 1.0);
         if (rate !== this._rate) {
             this._rate = rate;
             this.bitmap.addLoadListener(function () {
@@ -431,15 +593,8 @@
         }
     };
 
-    Sprite_AccumulateState.prototype.refresh = function () {
-        var stateId = this._actor.getGaugeStateId();
-        if (stateId > 0) {
-            this.x = this._actor.getGaugeX();
-            this.y = this._actor.getGaugeY();
-            this.visible = true;
-        } else {
-            this.visible = false;
-        }
+    Sprite_AccumulateState.prototype.updatePosition = function () {
+        this.x = this._battler.getGaugeX();
+        this.y = this._battler.getGaugeY();
     };
 })();
-

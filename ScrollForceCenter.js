@@ -6,6 +6,9 @@
 // http://opensource.org/licenses/mit-license.php
 // ----------------------------------------------------------------------------
 // Version
+// 2.0/4 2022/08/10 2.0.3の修正を近景プラグインにも正しく適用
+// 2.0.3 2021/08/24 遠景を設定してスクロールしたときに画面端に近づくと遠景が高速でスクロールしてしまう問題を修正
+// 2.0.2 2021/04/19 マップがループしているとき画面シフトが機能しない問題を修正
 // 2.0.1 2020/11/26 イベントテストでエラーになる問題を修正
 // 2.0.0 2020/11/18 MZ向けに全面的にリファクタリング
 // 1.1.0 2019/04/28 中心座標を指定したぶんだけずらせる機能を追加
@@ -187,10 +190,14 @@
         if (this.isForceCenterHorizontal()) {
             this._displayX = x + (param.adjustX || 0);
             this._parallaxX = this._displayX;
+        } else if (this.isLoopHorizontal()) {
+            this._displayX += param.adjustX || 0;
         }
         if (this.isForceCenterVertical()) {
             this._displayY = y + (param.adjustY || 0);
             this._parallaxY = this._displayY;
+        }else if (this.isLoopVertical()) {
+            this._displayY += param.adjustY || 0;
         }
     };
 
@@ -205,36 +212,56 @@
     const _Game_Map_scrollDown = Game_Map.prototype.scrollDown;
     Game_Map.prototype.scrollDown = function(distance) {
         const forceCenterDisplayY = this._displayY + distance;
+        const lastY = this._displayY;
+        const lastPy = this._parallaxY;
+        const lastFy = this._foregroundY;
         _Game_Map_scrollDown.apply(this, arguments);
         if (this.isForceCenterVertical()) {
             this._displayY = forceCenterDisplayY;
+            this._parallaxY = lastPy + this._displayY - lastY;
+            this._foregroundY = lastFy + this._displayY - lastY;
         }
     };
 
     const _Game_Map_scrollLeft      = Game_Map.prototype.scrollLeft;
     Game_Map.prototype.scrollLeft = function(distance) {
         const forceCenterDisplayX = this._displayX - distance;
+        const lastX = this._displayX;
+        const lastPx = this._parallaxX;
+        const lastFx = this._foregroundX;
         _Game_Map_scrollLeft.apply(this, arguments);
         if (this.isForceCenterHorizontal()) {
             this._displayX = forceCenterDisplayX;
+            this._parallaxX = lastPx + this._displayX - lastX;
+            this._foregroundX = lastFx + this._displayX - lastX;
         }
     };
 
     const _Game_Map_scrollRight      = Game_Map.prototype.scrollRight;
     Game_Map.prototype.scrollRight = function(distance) {
         const forceCenterDisplayX = this._displayX + distance;
+        const lastX = this._displayX;
+        const lastPx = this._parallaxX;
+        const lastFx = this._foregroundX;
         _Game_Map_scrollRight.apply(this, arguments);
         if (this.isForceCenterHorizontal()) {
             this._displayX = forceCenterDisplayX;
+            this._parallaxX = lastPx + this._displayX - lastX;
+            this._foregroundX = lastFx + this._displayX - lastX;
         }
     };
 
     const _Game_Map_scrollUp = Game_Map.prototype.scrollUp;
     Game_Map.prototype.scrollUp = function(distance) {
         const forceCenterDisplayY = this._displayY - distance;
+        const lastY = this._displayY;
+        const lastPy = this._parallaxY;
+        const lastFy = this._foregroundY;
         _Game_Map_scrollUp.apply(this, arguments);
         if (this.isForceCenterVertical()) {
             this._displayY = forceCenterDisplayY;
+            this._parallaxY = lastPy + this._displayY - lastY;
+            this._foregroundY = lastFy + this._displayY - lastY;
         }
     };
 })();

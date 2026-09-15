@@ -1,89 +1,63 @@
 //=============================================================================
 // ParamTextColorChanger.js
 // ----------------------------------------------------------------------------
-// Copyright (c) 2016 Triacontane
+// (C)2016 Triacontane
 // This software is released under the MIT License.
 // http://opensource.org/licenses/mit-license.php
 // ----------------------------------------------------------------------------
 // Version
+// 1.2.2 2025/05/05 パラメータのテキストカラー指定に対応
+// 1.2.1 2022/04/19 名称のカラーは変更しない設定のとき装備変更画面でアクター変更すると、アクター名称がシステムカラーで表示されてしまう問題を修正
+// 1.2.0 2022/02/16 アクター名称のテキストカラーをHPカラーと連動させるデフォルト仕様を撤廃できる機能を追加
+// 1.1.0 2022/02/16 MZで動作するよう修正
+//                  パラメータに以上以下の条件を指定できる機能を追加
 // 1.0.0 2016/11/25 初版
 // ----------------------------------------------------------------------------
-// [Blog]   : http://triacontane.blogspot.jp/
+// [Blog]   : https://triacontane.blogspot.jp/
 // [Twitter]: https://twitter.com/triacontane/
 // [GitHub] : https://github.com/triacontane/
 //=============================================================================
 
 /*:
- * @plugindesc ParamTextColorChangerPlugin
- * @target MZ @url https://github.com/triacontane/RPGMakerMV/tree/mz_master @author triacontane
- *
- * @param HP閾値配列
- * @desc テキストカラーを変更するHP割合の閾値をカンマ区切りで指定します。
- * @default 0,25,100
- *
- * @param HPカラー配列
- * @desc 対応する閾値の割合以下のHPテキストカラーをシステムカラーのIDで指定します。
- * @default 18,17,0
- *
- * @param MP閾値配列
- * @desc テキストカラーを変更するMP割合の閾値をカンマ区切りで指定します。
- * @default 100
- *
- * @param MPカラー配列
- * @desc 対応する閾値の割合以下のMPテキストカラーをシステムカラーのIDで指定します。
- * @default 0
- *
- * @param TP閾値配列
- * @desc テキストカラーを変更するTP割合の閾値をカンマ区切りで指定します。
- * @default 100
- *
- * @param TPカラー配列
- * @desc 対応する閾値の割合以下のTPテキストカラーをシステムカラーのIDで指定します。
- * @default 0
- *
- * @help HP、MPおよびTPの数値を表示する際に
- * 残量によって表示色を変更することができます。
- *
- * 値は10%単位で指定可能です。
- *
- * このプラグインにはプラグインコマンドはありません。
- *
- * This plugin is released under the MIT License.
- */
-/*:ja
  * @plugindesc パラメータテキストカラー変更プラグイン
- * @target MZ @url https://github.com/triacontane/RPGMakerMV/tree/mz_master @author トリアコンタン
- *
- * @param HpThresholds
- * @desc テキストカラーを変更するHP割合の閾値をカンマ区切りで指定します。
- * @default 0,25,100
+ * @target MZ
+ * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/ParamTextColorChanger.js
+ * @base PluginCommonBase
+ * @orderAfter PluginCommonBase
+ * @author トリアコンタン
  *
  * @param HpColors
- * @desc 対応する閾値の割合以下のHPテキストカラーをシステムカラーのIDで指定します。
- * @default 18,17,0
- *
- * @param MpThresholds
- * @desc テキストカラーを変更するMP割合の閾値をカンマ区切りで指定します。
- * @default 100
+ * @text HPテキストカラー
+ * @desc HPのテキストカラーを割合に応じて変更します。リストの上から順番に評価されます。
+ * @default []
+ * @type struct<Color>[]
  *
  * @param MpColors
- * @desc 対応する閾値の割合以下のMPテキストカラーをシステムカラーのIDで指定します。
- * @default 0
- *
- * @param TpThresholds
- * @desc テキストカラーを変更するTP割合の閾値をカンマ区切りで指定します。
- * @default 100
+ * @text MPテキストカラー
+ * @desc MPのテキストカラーを割合に応じて変更します。リストの上から順番に評価されます。
+ * @default []
+ * @type struct<Color>[]
  *
  * @param TpColors
- * @desc 対応する閾値の割合以下のTPテキストカラーをシステムカラーのIDで指定します。
- * @default 0
+ * @text TPテキストカラー
+ * @desc TPのテキストカラーを割合に応じて変更します。リストの上から順番に評価されます。
+ * @default []
+ * @type struct<Color>[]
  *
- * @help HP、MPおよびTPの数値をウィンドウに表示する際に
- * 残量によって表示色を変更することができます。
+ * @param NameColorNoChange
+ * @text 名称のカラーは変更しない
+ * @desc アクター名称のテキストカラーをHPカラーと連動させるデフォルト仕様を撤廃します。
+ * @default false
+ * @type boolean
  *
- * 値は10%単位で指定可能です。
+ * @help ParamTextColorChanger.js
  *
- * このプラグインにはプラグインコマンドはありません。
+ * 現在の割合に応じて、HP、MPおよびTPの数値のテキストカラーを変更できます。
+ *
+ * このプラグインの利用にはベースプラグイン『PluginCommonBase.js』が必要です。
+ * 『PluginCommonBase.js』は、RPGツクールMZのインストールフォルダ配下の
+ * 以下のフォルダに格納されています。
+ * dlc/BasicResources/plugins/official
  *
  * 利用規約：
  *  作者に無断で改変、再配布が可能で、利用形態（商用、18禁利用等）
@@ -91,86 +65,110 @@
  *  このプラグインはもうあなたのものです。
  */
 
-(function() {
+/*~struct~Color:
+ *
+ * @param operand
+ * @text 割合設定値
+ * @desc 条件判定する際のパラメータの割合(0% - 100%)です。
+ * @default 0
+ * @type number
+ * @min 0
+ * @max 100
+ *
+ * @param sign
+ * @text 条件符号
+ * @desc パラメータの割合が指定値以上か指定値以下かを設定します。
+ * @default ≥
+ * @type select
+ * @option ≥ (指定割合以上の場合)
+ * @value ≥
+ * @option ≤ (指定割合以下の場合)
+ * @value ≤
+ *
+ * @param colorIndex
+ * @text カラーインデックス
+ * @desc 指定した条件を満たしたときに変更されるカラーインデックス（\c[n]で指定する数値）です。
+ * @default 0
+ * @type color
+ */
+
+(()=> {
     'use strict';
-    var pluginName = 'ParamTextColorChanger';
-
-    var getParamOther = function(paramNames) {
-        if (!Array.isArray(paramNames)) paramNames = [paramNames];
-        for (var i = 0; i < paramNames.length; i++) {
-            var name = PluginManager.parameters(pluginName)[paramNames[i]];
-            if (name) return name;
-        }
-        return null;
-    };
-
-    var getParamString = function(paramNames) {
-        var value = getParamOther(paramNames);
-        return value === null ? '' : value;
-    };
-
-    var getParamArrayString = function(paramNames) {
-        var values = getParamString(paramNames).split(',');
-        for (var i = 0; i < values.length; i++) values[i] = values[i].trim();
-        return values;
-    };
-
-    var getParamArrayNumber = function(paramNames, min, max) {
-        var values = getParamArrayString(paramNames);
-        if (arguments.length < 2) min = -Infinity;
-        if (arguments.length < 3) max = Infinity;
-        for (var i = 0; i < values.length; i++) {
-            if (!isNaN(parseInt(values[i], 10))) {
-                values[i] = (parseInt(values[i], 10) || 0).clamp(min, max);
-            } else {
-                values.splice(i--, 1);
-            }
-        }
-        return values;
-    };
-
-    //=============================================================================
-    // パラメータの取得と整形
-    //=============================================================================
-    var paramHpThresholds = getParamArrayNumber(['HpThresholds', 'HP閾値配列']);
-    var paramHpColors     = getParamArrayNumber(['HpColors', 'HPカラー配列']);
-    var paramMpThresholds = getParamArrayNumber(['MpThresholds', 'MP閾値配列']);
-    var paramMpColors     = getParamArrayNumber(['MpColors', 'MPカラー配列']);
-    var paramTpThresholds = getParamArrayNumber(['TpThresholds', 'TP閾値配列']);
-    var paramTpColors     = getParamArrayNumber(['TpColors', 'TPカラー配列']);
+    const script = document.currentScript;
+    const param = PluginManagerEx.createParameter(script);
+    if (!param.HpColors) {
+        param.HpColors = [];
+    }
+    if (!param.MpColors) {
+        param.MpColors = [];
+    }
+    if (!param.TpColors) {
+        param.TpColors = [];
+    }
 
     //=============================================================================
     // Window_Base
     //  テキストカラーを変更します。
     //=============================================================================
-    var _Window_Base_hpColor      = Window_Base.prototype.hpColor;
-    Window_Base.prototype.hpColor = function(actor) {
-        for (var i = 0, n = paramHpThresholds.length; i < n; i++) {
-            if (actor.hpRate() <= paramHpThresholds[i] / 100) {
-                return this.textColor(paramHpColors[i]);
-            }
-        }
-        return _Window_Base_hpColor.apply(this, arguments);
+    const _ColorManager_hpColor      = ColorManager.hpColor;
+    ColorManager.hpColor = function(actor) {
+        const defaultColor = _ColorManager_hpColor.apply(this, arguments);
+        return this.findParamTextColor(param.HpColors, actor.hpRate()) || defaultColor;
     };
 
-    var _Window_Base_mpColor      = Window_Base.prototype.mpColor;
-    Window_Base.prototype.mpColor = function(actor) {
-        for (var i = 0, n = paramMpThresholds.length; i < n; i++) {
-            if (actor.mpRate() <= paramMpThresholds[i] / 100) {
-                return this.textColor(paramMpColors[i]);
-            }
-        }
-        return _Window_Base_mpColor.apply(this, arguments);
+    const _ColorManager_mpColor      = ColorManager.mpColor;
+    ColorManager.mpColor = function(actor) {
+        const defaultColor = _ColorManager_mpColor.apply(this, arguments);
+        return this.findParamTextColor(param.MpColors, actor.mpRate()) || defaultColor;
     };
 
-    var _Window_Base_tpColor      = Window_Base.prototype.tpColor;
-    Window_Base.prototype.tpColor = function(actor) {
-        for (var i = 0, n = paramTpThresholds.length; i < n; i++) {
-            if (actor.tpRate() <= paramTpThresholds[i] / 100) {
-                return this.textColor(paramTpColors[i]);
-            }
-        }
-        return _Window_Base_tpColor.apply(this, arguments);
+    const _ColorManager_tpColor      = ColorManager.tpColor;
+    ColorManager.tpColor = function(actor) {
+        const defaultColor = _ColorManager_tpColor.apply(this, arguments);
+        return this.findParamTextColor(param.TpColors, actor.tpRate()) || defaultColor;
     };
+
+    ColorManager.findParamTextColor = function(paramList, rate) {
+        const color = paramList.find(item => {
+            const operand = item.operand / 100;
+            return item.sign === '≥' ? rate >= operand : rate <= operand;
+        });
+        return color ? this.textColor(color.colorIndex) : null;
+    };
+
+    if (param.NameColorNoChange) {
+        const _Window_StatusBase_drawActorName = Window_StatusBase.prototype.drawActorName;
+        Window_StatusBase.prototype.drawActorName = function(actor, x, y, width) {
+            this._invalidChangeColor = true;
+            _Window_StatusBase_drawActorName.apply(this, arguments);
+            this._invalidChangeColor = false;
+        };
+
+        const _Window_EquipStatus_refresh = Window_EquipStatus.prototype.refresh;
+        Window_EquipStatus.prototype.refresh = function() {
+            this.changeTextColor(ColorManager.normalColor());
+            _Window_EquipStatus_refresh.apply(this, arguments);
+        };
+
+        const _Window_Base_initialize = Window_Base.prototype.initialize;
+        Window_Base.prototype.initialize = function(rect) {
+            _Window_Base_initialize.apply(this, arguments);
+            this._invalidChangeColor = false;
+        };
+
+        const _Window_Base_changeTextColor = Window_Base.prototype.changeTextColor;
+        Window_Base.prototype.changeTextColor = function(color) {
+            if (this._invalidChangeColor) {
+                return;
+            }
+            _Window_Base_changeTextColor.apply(this, arguments);
+        };
+
+        const _Sprite_Name_textColor = Sprite_Name.prototype.textColor;
+        Sprite_Name.prototype.textColor = function() {
+            _Sprite_Name_textColor.apply(this, arguments);
+            return ColorManager.normalColor();
+        };
+    }
 })();
 

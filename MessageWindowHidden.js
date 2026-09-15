@@ -6,6 +6,9 @@
 // http://opensource.org/licenses/mit-license.php
 // ----------------------------------------------------------------------------
 // Version
+// 2.8.2 2023/03/14 決定動作により復帰するとき、スイッチ同期が設定されていると一瞬復帰したあと元に戻ってしまう問題を修正
+// 2.8.1 2023/03/11 決定動作により復帰するとき、左クリックで復帰するとメッセージが進んでしまう問題を修正
+// 2.8.0 2022/06/06 トリガースイッチをウィンドウの表示状態と同期する機能を追加
 // 2.7.0 2021/01/25 ウィンドウ消去時、決定動作によってウィンドウを再表示できる設定を追加(by unaunagiさま)
 // 2.6.2 2020/09/02 MZ向けにコード修正
 // 2.6.1 2020/05/21 トリガースイッチと連動無効スイッチの状態によってエラーが起きうる記述を修正
@@ -36,69 +39,6 @@
 //=============================================================================
 
 /*:
- * @plugindesc Erase message window
- * @target MZ
- * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/MessageWindowHidden.js
- * @author triacontane
- *
- * @param triggerButton
- * @desc Trigger buttons
- * (light_click or shift or control)
- * @default ["light_click"]
- * @type combo[]
- * @option light_click
- * @option shift
- * @option control
- * @option tab
- * @option pageup
- * @option pagedown
- * @option debug
- *
- * @param triggerSwitch
- * @desc The window will be erased in conjunction with the specified switch.
- * @default 0
- * @type switch
- *
- * @param linkPictureNumbers
- * @desc Picture number of window show/hide
- * @default []
- * @type number[]
- *
- * @param linkShowPictureNumbers
- * @desc Picture number of window show/hide
- * @default []
- * @type number[]
- *
- * @param disableLinkSwitchId
- * @desc 指定した番号のスイッチがONのとき、ピクチャの連動が無効になります。
- * @default 0
- * @type switch
- *
- * @param disableSwitchId
- * @desc 指定した番号のスイッチがONのとき、プラグインの機能が無効になります。
- * @default 0
- * @type switch
- *
- * @param disableInBattle
- * @desc trueのとき、戦闘中にプラグインの機能を無効にします。
- * @default false
- * @type boolean
- *
- * @param disableInChoice
- * @desc 選択肢の表示中はウィンドウを非表示にできなくなります。
- * @default true
- * @type boolean
- *
- * @param restoreByDecision
- * @desc メッセージ消去時、決定動作により非表示になっていたメッセージウィンドウを再表示できます。
- * @default false
- * @type boolean
- *
- * @help Erase message window (and restore) when triggered
- *
- * This plugin is released under the MIT License.
- */
-/*:ja
  * @plugindesc メッセージウィンドウ一時消去プラグイン
  * @target MZ
  * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/MessageWindowHidden.js
@@ -122,6 +62,12 @@
  * @desc 指定したスイッチに連動させてウィンドウを消去します。並列処理などを使ってON/OFFを適切に管理してください。
  * @default 0
  * @type switch
+ * 
+ * @param syncSwitch
+ * @text トリガースイッチ同期
+ * @desc 有効にすると、手動で消去した場合も含めてウィンドウの表示状態とトリガースイッチが同期します。
+ * @default false
+ * @type boolean
  *
  * @param linkPictureNumbers
  * @text 連動ピクチャ番号
@@ -190,8 +136,8 @@
      * @param pluginName plugin name(EncounterSwitchConditions)
      * @returns {Object} Created parameter
      */
-    var createPluginParameter = function(pluginName) {
-        var paramReplacer = function(key, value) {
+    const createPluginParameter = function(pluginName) {
+        const paramReplacer = function(key, value) {
             if (value === 'null') {
                 return value;
             }
@@ -204,11 +150,11 @@
                 return value;
             }
         };
-        var parameter     = JSON.parse(JSON.stringify(PluginManager.parameters(pluginName), paramReplacer));
+        const parameter     = JSON.parse(JSON.stringify(PluginManager.parameters(pluginName), paramReplacer));
         PluginManager.setParameters(pluginName, parameter);
         return parameter;
     };
-    var param = createPluginParameter('MessageWindowHidden');
+    const param = createPluginParameter('MessageWindowHidden');
 
     //=============================================================================
     // Game_Picture
@@ -223,7 +169,7 @@
     // Window_Message
     //  指定されたボタン押下時にウィンドウとサブウィンドウを非表示にします。
     //=============================================================================
-    var _Window_Message_updateWait      = Window_Message.prototype.updateWait;
+    const _Window_Message_updateWait      = Window_Message.prototype.updateWait;
     Window_Message.prototype.updateWait = function() {
         if (!this.isClosed() && this.isTriggeredHidden() && this.isEnableInChoice()) {
             if (!this.isHidden()) {
@@ -233,9 +179,13 @@
             }
         } else if (this.isHidden() && this.isTriggered() && param.restoreByDecision) {
             this.showAllWindow();
+            if (param.syncSwitch) {
+                $gameSwitches.setValue(param.triggerSwitch, false);
+            }
             Input.update();
+            TouchInput.update();
         }
-        var wait = _Window_Message_updateWait.apply(this, arguments);
+        const wait = _Window_Message_updateWait.apply(this, arguments);
         if (this.isHidden() && this.visible) {
             this.hideAllWindow();
         }
@@ -288,7 +238,7 @@
     };
 
     Window_Message.prototype.linkPicture = function(opacity, pictureId) {
-        var picture = $gameScreen.picture(pictureId);
+        const picture = $gameScreen.picture(pictureId);
         if (!picture) {
             return;
         }
@@ -336,7 +286,7 @@
         if (param.triggerSwitch > 0 && this.isTriggeredHiddenSwitch()) {
             return true;
         }
-        return param.triggerButton.some(function(button) {
+        const result = param.triggerButton.some(function(button) {
             switch (button) {
                 case '':
                 case '右クリック':
@@ -348,10 +298,14 @@
                     return Input.isTriggered(button);
             }
         });
+        if (param.syncSwitch && param.triggerSwitch > 0 && result) {
+            $gameSwitches.setValue(param.triggerSwitch, !this.isHidden());
+        }
+        return result;
     };
 
     Window_Message.prototype.isTriggeredHiddenSwitch = function() {
-        var triggerSwitch = $gameSwitches.value(param.triggerSwitch);
+        const triggerSwitch = $gameSwitches.value(param.triggerSwitch);
         if (triggerSwitch && !this.isHidden()) {
             return true;
         }
@@ -361,7 +315,7 @@
         return false;
     };
 
-    var _Window_Message_updateInput      = Window_Message.prototype.updateInput;
+    const _Window_Message_updateInput      = Window_Message.prototype.updateInput;
     Window_Message.prototype.updateInput = function() {
         if (this.isHidden()) return true;
         return _Window_Message_updateInput.apply(this, arguments);
@@ -371,19 +325,19 @@
     // Window_ChoiceList、Window_NumberInput、Window_EventItem
     //  非表示の間は更新を停止します。
     //=============================================================================
-    var _Window_ChoiceList_update      = Window_ChoiceList.prototype.update;
+    const _Window_ChoiceList_update      = Window_ChoiceList.prototype.update;
     Window_ChoiceList.prototype.update = function() {
         if (!this.visible) return;
         _Window_ChoiceList_update.apply(this, arguments);
     };
 
-    var _Window_NumberInput_update      = Window_NumberInput.prototype.update;
+    const _Window_NumberInput_update      = Window_NumberInput.prototype.update;
     Window_NumberInput.prototype.update = function() {
         if (!this.visible) return;
         _Window_NumberInput_update.apply(this, arguments);
     };
 
-    var _Window_EventItem_update      = Window_EventItem.prototype.update;
+    const _Window_EventItem_update      = Window_EventItem.prototype.update;
     Window_EventItem.prototype.update = function() {
         if (!this.visible) return;
         _Window_EventItem_update.apply(this, arguments);

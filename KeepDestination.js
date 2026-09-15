@@ -1,33 +1,34 @@
 //=============================================================================
 // KeepDestination.js
 // ----------------------------------------------------------------------------
-// (C)2015-2018 Triacontane
+// (C)2018 Triacontane
 // This software is released under the MIT License.
 // http://opensource.org/licenses/mit-license.php
 // ----------------------------------------------------------------------------
 // Version
+// 1.2.3 2026/05/10 タッチ移動の到達地点でイベントを起動したとき、タッチ移動が解除されない問題を修正
+// 1.2.1 2025/09/30 フェード「なし」で場所移動するとタッチ移動が移動後も維持されてしまう問題を修正
+// 1.2.0 2025/09/07 移動ルート強制を行うとタッチ移動を中断する機能を追加
+// 1.1.0 2025/03/11 MZ版としてリファクタリング
 // 1.0.0 2018/01/06 初版
 // ----------------------------------------------------------------------------
-// [Blog]   : https://triacontane.blogspot.jp/
-// [Twitter]: https://twitter.com/triacontane/
+// [X]      : https://twitter.com/triacontane/
 // [GitHub] : https://github.com/triacontane/
 //=============================================================================
 
 /*:
- * @plugindesc KeepDestinationPlugin
- * @target MZ @url https://github.com/triacontane/RPGMakerMV/tree/mz_master @author triacontane
- *
- * @help KeepDestination.js
- *
- * タッチ移動中にイベントが実行された場合でもタッチ移動が
- * 中断されなくなります。
- * ただし、進行方向が通行不可だった場合は停止します。
- *
- * This plugin is released under the MIT License.
- */
-/*:ja
  * @plugindesc タッチ移動先の保持プラグイン
- * @target MZ @url https://github.com/triacontane/RPGMakerMV/tree/mz_master @author トリアコンタン
+ * @target MZ
+ * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/KeepDestination.js
+ * @base PluginCommonBase
+ * @orderAfter PluginCommonBase
+ * @author トリアコンタン
+ *
+ * @param abortByRouteForce
+ * @text 移動ルート強制で中断
+ * @desc タッチ移動中に移動ルート強制が実行された場合、タッチ移動を中断します。
+ * @default false
+ * @type boolean
  *
  * @help KeepDestination.js
  *
@@ -35,7 +36,10 @@
  * 中断されなくなります。
  * ただし、進行方向が通行不可だった場合は停止します。
  *
- * このプラグインにはプラグインコマンドはありません。
+ * このプラグインの利用にはベースプラグイン『PluginCommonBase.js』が必要です。
+ * 『PluginCommonBase.js』は、RPGツクールMZのインストールフォルダ配下の
+ * 以下のフォルダに格納されています。
+ * dlc/BasicResources/plugins/official
  *
  * 利用規約：
  *  作者に無断で改変、再配布が可能で、利用形態（商用、18禁利用等）
@@ -43,19 +47,42 @@
  *  このプラグインはもうあなたのものです。
  */
 
-(function() {
+(()=> {
     'use strict';
+    const script = document.currentScript;
+    const param = PluginManagerEx.createParameter(script);
 
     //=============================================================================
     // Scene_Map
     //=============================================================================
-    var _Scene_Map_updateDestination = Scene_Map.prototype.updateDestination;
+    const _Scene_Map_updateDestination = Scene_Map.prototype.updateDestination;
     Scene_Map.prototype.updateDestination = function() {
-        if ($gamePlayer.canPassStraight() && !$gamePlayer.isTransferring()) {
+        if ($gamePlayer.isNeetDestinationKeep()) {
             $gameTemp.keepDestination();
+            this._prevTouchCount = this._touchCount;
         }
         _Scene_Map_updateDestination.apply(this, arguments);
+        if (this._prevTouchCount && !this.isMapTouchOk()) {
+            this._touchCount = this._prevTouchCount;
+        }
+        this._prevTouchCount = 0;
         $gameTemp.clearKeepDestination();
+    };
+
+    Game_Player.prototype.isDestinationAbortByRouteForce = function() {
+        return this._moveRouteForcing && param.abortByRouteForce;
+    };
+
+    Game_Player.prototype.isNeetDestinationKeep = function() {
+        return this.canPassStraight() && !this.isTransferring() &&
+            !this.isDestinationAbortByRouteForce() && !$gameTemp.isDestinationArrival();
+    };
+
+    const _Game_Player_reserveTransfer = Game_Player.prototype.reserveTransfer;
+    Game_Player.prototype.reserveTransfer = function(mapId, x, y, d, fadeType) {
+        _Game_Player_reserveTransfer.apply(this, arguments);
+        $gameTemp.clearKeepDestination();
+        $gameTemp.clearDestination();
     };
 
     //=============================================================================
@@ -69,12 +96,16 @@
         this._keepDestination = false;
     };
 
-    var _Game_Temp_clearDestination = Game_Temp.prototype.clearDestination;
+    const _Game_Temp_clearDestination = Game_Temp.prototype.clearDestination;
     Game_Temp.prototype.clearDestination = function() {
         if (this._keepDestination) {
             return;
         }
         _Game_Temp_clearDestination.apply(this, arguments);
+    };
+
+    Game_Temp.prototype.isDestinationArrival = function() {
+        return this._destinationX === $gamePlayer.x && this._destinationY === $gamePlayer.y;
     };
 
     //=============================================================================

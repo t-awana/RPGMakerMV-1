@@ -6,6 +6,15 @@
 // http://opensource.org/licenses/mit-license.php
 // ----------------------------------------------------------------------------
 // Version
+// 2.10.2 2026/08/09 残りターン数が0の場合は点滅表示されないよう修正
+// 2.10.1 2026/07/27 IconDescription.jsとの連携してリングステートアイコンにも説明文を表示できる機能を追加
+// 2.10.0 2025/11/03 ステート一列表示の揃えを左揃えにできる機能を追加
+// 2.9.0 2024/02/29 ターン数によってアイコンを点滅表示される機能を追加
+// 2.8.0 2022/12/05 表示対象外アイコンを指定したとき、アイコンのターン数が実際の値と異なる表示になる場合がある問題を修正
+//                  パラメータのアイコンtypeに対応
+// 2.7.0 2022/05/16 リングアイコン全体を一時的に非表示にできるスイッチを追加
+// 2.6.0 2022/03/29 ターン数表示に数字フォントを使用できる機能を追加
+// 2.5.0 2021/09/11 敵と味方のステート一列表示の基準を別々に設定できるよう修正
 // 2.4.6 2021/04/07 2.4.1の修正で敵キャラのリングアイコンY座標が調整できなくなっていた問題を修正
 //                  2.4.1の修正でフロントビューの場合に、アクターのリングアイコンを表示しない設定が機能しない問題を修正
 // 2.4.5 2021/03/30 グローバル向けヘルプが正常に読み込まれていなかった問題を修正
@@ -49,136 +58,6 @@
 //=============================================================================
 
 /*:
- * @plugindesc StateRingIconPlugin
- * @target MZ
- * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/StateRingIcon.js
- * @base PluginCommonBase
- * @author triacontane
- *
- * @param RadiusX
- * @desc The value of the horizontal radius.
- * @default 64
- * @type number
- *
- * @param RadiusY
- * @desc The value of the vertical radius.
- * @default 16
- * @type number
- *
- * @param ScaleX
- * @desc The horizontal scale of the icon.
- * @default 100
- * @type number
- *
- * @param ScaleY
- * @desc The vertical scale of the icon.
- * @default 100
- * @type number
- *
- * @param CycleDuration
- * @desc The time (number of frames) it takes for the icon to rotate around the screen.
- * @default 120
- * @type number
- *
- * @param LineViewLimit
- * @desc If the number of states is less than or equal to this value, it will be displayed in a single column.
- * @default 1
- * @type number
- *
- * @param Reverse
- * @desc The direction of rotation will be counterclockwise.
- * @default false
- * @type boolean
- *
- * @param ShowTurnCount
- * @desc Displays the number of turns remaining in the state. It is displayed for both friend and foe.
- * @default true
- * @type boolean
- *
- * @param IconIndexWithoutRing
- * @desc This is an "icon index" that is not subject to the ring display.
- * @default []
- * @type string[]
- *
- * @param IconIndexWithoutShowTurns
- * @desc The "icon index" is excluded from the display of the number of state-turns.
- * @default []
- * @type string[]
- *
- * @param TurnCountX
- * @desc Adjusts the X coordinate display position of the number of turns.
- * @default 0
- * @type number
- * @min -1000
- * @max 1000
- *
- * @param TurnCountY
- * @desc Adjusts the Y coordinate display position of the number of turns.
- * @default 0
- * @type number
- * @min -1000
- * @max 1000
- *
- * @param TurnAdjustment
- * @desc Corrects the displayed value of the number of turns.
- * @default 0
- * @type number
- * @min -9999
- * @max 9999
- *
- * @param FontSize
- * @desc The font size of the remaining turns display.
- * @default 24
- * @type number
- *
- * @param ActorRingIcon
- * @desc The state icons of allies will also be displayed as rings.
- * @default true
- * @type boolean
- *
- * @param ActorRingIconX
- * @desc X of the actor state icon.
- * @default 0
- * @type number
- * @min -1000
- * @max 1000
- *
- * @param ActorRingIconY
- * @desc Y of the actor state icon.
- * @default 0
- * @type number
- * @min -1000
- * @max 1000
- *
- * @param EnemyRingIconX
- * @desc X of the enemy state icon.
- * @default 0
- * @type number
- * @min -1000
- * @max 1000
- *
- * @param EnemyRingIconY
- * @desc Y of the enemy state icon.
- * @default 0
- * @type number
- * @min -1000
- * @max 1000
- *
- * @help StateRingIcon.js
- *
- * You can rotate the state icons of enemy characters
- * when multiple states are enabled clockwise to display
- * them in a ring or in a row.
- *
- * If you want to adjust the position of the ring state
- * for each enemy character, write the following
- * in the note of the database.
- * <RingStateX:0>
- * <RingStateY:0>
- *
- */
-
-/*:ja
  * @plugindesc リングステートプラグイン
  * @target MZ
  * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/StateRingIcon.js
@@ -216,10 +95,26 @@
  * @type number
  *
  * @param LineViewLimit
- * @text 一列配置上限
- * @desc ステート数がこの値以下の場合はリングアイコンではなく1列で表示されます。0にすると常に1列表示になります。
+ * @text 一列配置上限(敵キャラ)
+ * @desc 敵キャラのステート数がこの値以下の場合はリングアイコンではなく1列で表示されます。0にすると常に1列表示になります。
  * @default 1
  * @type number
+ *
+ * @param LineViewLimitActor
+ * @text 一列配置上限(アクター)
+ * @desc アクターのステート数がこの値以下の場合はリングアイコンではなく1列で表示されます。0にすると常に1列表示になります。
+ * @default 1
+ * @type number
+ *
+ * @param LineViewAlign
+ * @text 一列配置の揃え
+ * @desc ステートアイコンを一列に並べた場合の揃え位置です。
+ * @default center
+ * @type select
+ * @option 左揃え
+ * @value left
+ * @option 中央揃え
+ * @value center
  *
  * @param Reverse
  * @text 反時計回り
@@ -233,17 +128,41 @@
  * @default true
  * @type boolean
  *
+ * @param BlinkTurn
+ * @text 点滅表示
+ * @desc 残りターン数が指定以下になると、アイコンが点滅表示します。ターン数が0あるいは存在しない場合は点滅しません。
+ * @default 0
+ * @type number
+ *
+ * @param BlinkSpeed
+ * @text 点滅速度
+ * @desc アイコンを点滅表示される場合の速度です。
+ * @default 3
+ * @type select
+ * @option 1
+ * @option 2
+ * @option 3
+ * @option 4
+ * @option 5
+ * @option 6
+ *
  * @param IconIndexWithoutRing
  * @text 表示対象外アイコン
  * @desc リング表示の対象外になる「アイコンインデックス」です。
  * @default []
- * @type string[]
+ * @type icon[]
  *
  * @param IconIndexWithoutShowTurns
  * @text ターン数表示対象外アイコン
  * @desc ステートターン数の表示対象外になる「アイコンインデックス」です。
  * @default []
- * @type string[]
+ * @type icon[]
+ *
+ * @param IconIndexWithoutBlink
+ * @text 点滅表示対象外アイコン
+ * @desc アイコン点滅表示の対象外になる「アイコンインデックス」です。
+ * @default []
+ * @type icon[]
  *
  * @param TurnCountX
  * @text ターン数X座標
@@ -268,6 +187,12 @@
  * @type number
  * @min -9999
  * @max 9999
+ *
+ * @param UseNumberFont
+ * @text 数字フォントを使用
+ * @desc ターン数の利用フォントに数字フォントを使用します。
+ * @default false
+ * @type boolean
  *
  * @param FontSize
  * @text フォントサイズ
@@ -312,6 +237,12 @@
  * @type number
  * @min -1000
  * @max 1000
+ *
+ * @param IconHideSwitch
+ * @text アイコン非表示スイッチ
+ * @desc 指定したスイッチがONのとき、リングアイコンが非表示になります。
+ * @default 0
+ * @type switch
  *
  * @help StateRingIcon.js
  *
@@ -359,7 +290,7 @@ function Sprite_StateIconChild() {
     //=============================================================================
     Game_BattlerBase.prototype.getStateTurns = function() {
         const stateTurns = this.states().map(function(state) {
-            if (state.iconIndex <= 0) {
+            if (state.iconIndex <= 0 || param.IconIndexWithoutRing.includes(state.iconIndex)) {
                 return null;
             } else if (state.autoRemovalTiming <= 0) {
                 return '';
@@ -374,7 +305,8 @@ function Sprite_StateIconChild() {
 
     Game_BattlerBase.prototype.getBuffTurns = function() {
         return this._buffTurns.filter(function(turns, index) {
-            return this._buffs[index] !== 0;
+            const icon = this.buffIconIndex(this._buffs[index], index);
+            return this._buffs[index] !== 0 && !param.IconIndexWithoutRing.includes(icon);
         }, this);
     };
 
@@ -501,19 +433,34 @@ function Sprite_StateIconChild() {
         }
         this.x = (this._baseX || 0) + this._battler.findRingStateX();
         this.y = (this._baseY || 0) + this._battler.findRingStateY();
+        if (param.IconHideSwitch) {
+            this.visible = !$gameSwitches.value(param.IconHideSwitch);
+        }
         this.updateRingIconChild();
     };
 
     Sprite_StateIcon.prototype.updateRingIconChild = function() {
-        if (this._iconsSprites.length > param.LineViewLimit && param.LineViewLimit > 0) {
+        if (this.isRingView()) {
             this.updateRingPosition();
         } else {
             this.updateNormalPosition();
         }
-        if (this._battler && param.ShowTurnCount) {
+        if (this._battler) {
             this.updateTurns();
         }
         this._sortChildren();
+    };
+
+    Sprite_StateIcon.prototype.isRingView = function() {
+        if (!this._battler) {
+            return false;
+        }
+        const limit = this._battler.isActor() ? param.LineViewLimitActor : param.LineViewLimit;
+        if (limit === 0) {
+            return false;
+        } else {
+            return this._iconsSprites.length > limit;
+        }
     };
 
     Sprite_StateIcon.prototype.updateRingPosition = function() {
@@ -613,6 +560,7 @@ function Sprite_StateIconChild() {
         this.visible     = false;
         this._turnSprite = null;
         this._turn       = 0;
+        this._frameCount = 0;
         this.scale.x = this.getScaleX();
         this.scale.y = this.getScaleY();
     };
@@ -625,7 +573,19 @@ function Sprite_StateIconChild() {
         return (param.ScaleY || 100) / 100;
     };
 
-    Sprite_StateIconChild.prototype.update = function() {};
+    Sprite_StateIconChild.prototype.update = function() {
+        if (this._turn > 0 && this._turn <= param.BlinkTurn && !param.IconIndexWithoutBlink.includes(this._iconIndex)) {
+            this._frameCount++;
+            this.opacity = (Math.sin(this._frameCount / (48 / param.BlinkSpeed)) + 1) * 256;
+        } else {
+            this._frameCount = 0;
+            this.opacity = 255;
+        }
+        // for IconDescription.js
+        if (this.updateIconCaption) {
+            this.updateIconCaption();
+        }
+    };
 
     Sprite_StateIconChild.prototype.setIconIndex = function(index) {
         this._iconIndex = index;
@@ -642,10 +602,10 @@ function Sprite_StateIconChild() {
     Sprite_StateIconChild.prototype.refreshIconTurn = function() {
         const bitmap = this._turnSprite.bitmap;
         bitmap.clear();
-        if (param.IconIndexWithoutShowTurns.contains(this._iconIndex)) {
+        if (param.IconIndexWithoutShowTurns.includes(this._iconIndex)) {
             return;
         }
-        if (this._turn > 0) {
+        if (this._turn > 0 && param.ShowTurnCount) {
             bitmap.drawText(this._turn, 0, 0, bitmap.width, bitmap.height, 'center');
         }
     };
@@ -654,6 +614,9 @@ function Sprite_StateIconChild() {
         if (this._turnSprite) return;
         const sprite           = new Sprite();
         sprite.bitmap          = new Bitmap(ImageManager.iconWidth, ImageManager.iconHeight);
+        if (param.UseNumberFont) {
+            sprite.bitmap.fontFace = $gameSystem.numberFontFace();
+        }
         sprite.bitmap.smooth   = true;
         sprite.bitmap.fontSize = param.FontSize;
         sprite.x               = param.TurnCountX;
@@ -669,7 +632,11 @@ function Sprite_StateIconChild() {
     };
 
     Sprite_StateIconChild.prototype.setNormalPosition = function(index, max) {
-        this.x       = ((-max + 1) / 2 + index) * this.getIconWidth();
+        if (param.LineViewAlign === 'left') {
+            this.x = index * this.getIconWidth();
+        } else {
+            this.x = ((-max + 1) / 2 + index) * this.getIconWidth();
+        }
         this.y       = 0;
         this.visible = true;
     };

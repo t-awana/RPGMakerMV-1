@@ -6,6 +6,14 @@
  http://opensource.org/licenses/mit-license.php
 ----------------------------------------------------------------------------
  Version
+ 2.3.0 2024/06/16 MV方式のアニメーションに角度を設定できる機能を追加
+ 2.2.1 2024/03/16 戦闘中にマップ座標のアニメーションを表示したとき専用エラーになるよう修正
+ 2.2.0 2024/03/16 アニメーションやフキダシをループ再生する機能を追加
+ 2.1.1 2024/01/16 戦闘中にアニメーションを表示したとき、完了までウェイトを無効にしていてもイベント実行が止まってしまう場合がある問題を修正
+ 2.1.0 2023/03/27 RemoveAnimation.jsと組み合わせて表示中のアニメーションやフキダシを即時消去できる機能を追加
+ 2.0.0 2022/10/16 フキダシもアニメーションと同様に表示できる機能を追加
+ 1.2.1 2022/06/30 ヘルプ文言修正
+ 1.2.0 2022/06/30 アニメーションをマップのスクロールに合わせる機能を追加
  1.1.0 2021/01/03 マップ座標にアニメーションを表示できるコマンドを追加
  1.0.0 2020/12/29 初版
 ----------------------------------------------------------------------------
@@ -15,53 +23,6 @@
 =============================================================================*/
 
 /*:
- * @plugindesc AnimationByPointPlugin
- * @target MZ
- * @base PluginCommonBase
- * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/AnimationByPoint.js
- * @author triacontane
- *
- * @command SHOW_ANIMATION
- * @desc Displays the animation at the specified coordinates (specified in pixels) on the screen.
- *
- * @arg id
- * @text Animation ID
- * @desc The animation ID to display.
- * @default 1
- * @type animation
- *
- * @arg x
- * @text X
- * @desc The X to display the animation.
- * @default 0
- * @type number
- *
- * @arg y
- * @text Y
- * @desc The Y to display the animation.
- * @default 0
- * @type number
- *
- * @arg wait
- * @text Wait to completion
- * @desc Wait for the event to progress until the animation display finishes.
- * @default false
- * @type boolean
- *
- * @help AnimationByPoint.js
- *
- * Provides a command to display an animation at a
- * specified coordinate (pixel specification) on the screen.
- * Since the target of the animation does not exist,
- * flashing to the target is invalid.
- *
- * The base plugin "PluginCommonBase.js" is required to use this plugin.
- * The "PluginCommonBase.js" is here.
- * (MZ install path)dlc/BasicResources/plugins/official/PluginCommonBase.js
- *
- * This plugin is released under the MIT License.
- */
-/*:ja
  * @plugindesc 指定座標へのアニメ表示プラグイン
  * @target MZ
  * @base PluginCommonBase
@@ -70,13 +31,66 @@
  * 
  * @command SHOW_ANIMATION
  * @text アニメーション表示
- * @desc 画面上の指定座標(ピクセル指定)にアニメーションを表示します。
+ * @desc 画面上の指定座標(ピクセル指定)にアニメーションやフキダシを表示します。
+ *
+ * @arg label
+ * @text ラベル
+ * @desc 表示するアニメーションのラベルです。途中消去する場合にあらかじめ指定しておきます。
+ * @default
  *
  * @arg id
  * @text アニメーションID
  * @desc 表示するアニメーションIDです。
  * @default 1
  * @type animation
+ *
+ * @arg balloonId
+ * @text フキダシID
+ * @desc 表示するフキダシIDです。アニメーションではなくフキダシを表示したいときはこちらを指定します。
+ * @default 0
+ * @type select
+ * @option なし
+ * @value 0
+ * @option びっくり
+ * @value 1
+ * @option はてな
+ * @value 2
+ * @option 音符
+ * @value 3
+ * @option ハート
+ * @value 4
+ * @option 怒り
+ * @value 5
+ * @option 汗
+ * @value 6
+ * @option くしゃくしゃ
+ * @value 7
+ * @option 沈黙
+ * @value 8
+ * @option 電球
+ * @value 9
+ * @option Zzz
+ * @value 10
+ * @option ユーザ定義1
+ * @value 11
+ * @option ユーザ定義2
+ * @value 12
+ * @option ユーザ定義3
+ * @value 13
+ * @option ユーザ定義4
+ * @value 14
+ * @option ユーザ定義5
+ * @value 15
+ *
+ * @arg positionType
+ * @text 座標タイプ
+ * @desc 座標の決定タイプを画面座標とマップ座標から選択します。
+ * @default screen
+ * @type select
+ * @option 画面座標
+ * @value screen
+ * @option マップ座標
+ * @value map
  *
  * @arg x
  * @text X座標
@@ -96,39 +110,47 @@
  * @default false
  * @type boolean
  *
- * @command SHOW_ANIMATION_BY_MAP_POINT
- * @text マップ座標にアニメーション表示
- * @desc マップ上の指定座標(マス指定)にアニメーションを表示します。
- *
- * @arg id
- * @text アニメーションID
- * @desc 表示するアニメーションIDです。
- * @default 1
- * @type animation
- *
- * @arg x
- * @text X座標
- * @desc アニメーションを表示するマップX座標です。
- * @default 0
- * @type number
- *
- * @arg y
- * @text Y座標
- * @desc アニメーションを表示するマップY座標です。
- * @default 0
- * @type number
- *
- * @arg wait
- * @text 完了までウェイト
- * @desc アニメーション表示が終わるまでイベントの進行を待機します。
+ * @arg scroll
+ * @text スクロールに連動
+ * @desc マップをスクロールに合わせてアニメーションの表示座標が変わります。
  * @default false
  * @type boolean
  *
+ * @arg loop
+ * @text ループ再生
+ * @desc アニメーションをループ再生します。止めるときはアニメーション消去から止めてください。
+ * @default false
+ * @type boolean
+ *
+ * @arg angle
+ * @text 角度
+ * @desc アニメーションの角度(0-360)です。MV方式のアニメーションのみ有効です。
+ * @default 0
+ * @type number
+ * @min 0
+ * @max 360
+ *
+ * @command REMOVE_ANIMATION
+ * @text アニメーション消去
+ * @desc ラベルを指定して表示中のアニメーションやフキダシを即時消去します。利用にはRemoveAnimation.jsが必要です。
+ *
+ * @arg label
+ * @text ラベル
+ * @desc 表示する際に指定してアニメーションのラベルです。
+ * @default
+ *
  * @help AnimationByPoint.js
  *
- * 画面上の指定座標(ピクセル指定)にアニメーションを表示するコマンドを提供します。
+ * 画面上の指定座標(ピクセル指定)にアニメーションやフキダシをを表示する
+ * コマンドを提供します。
  * アニメーションの対象が存在しないため、対象へのフラッシュは無効です。
  * またプラグインの構造上、プライオリティ変更の機能追加はできません。
+ *
+ * フキダシを戦闘画面で表示したい場合、別途『BattleBalloon.js』が
+ * 必要です。本プラグインと同じ場所で配布しています。
+ *
+ * 表示中のアニメーションやフキダシを即時消去したいときは
+ * 別途『RemoveAnimation.js』を適用して消去コマンドを実行してください。
  *　
  * このプラグインの利用にはベースプラグイン『PluginCommonBase.js』が必要です。
  * 『PluginCommonBase.js』は、RPGツクールMZのインストールフォルダ配下の
@@ -146,13 +168,19 @@
     const script = document.currentScript;
 
     PluginManagerEx.registerCommand(script, 'SHOW_ANIMATION', function(args) {
+        if (args.positionType === 'map') {
+            if ($gameParty.inBattle()) {
+                PluginManagerEx.throwError(
+                    'In battle, you can\'t specify map coordinates. Please specify screen coordinates.', script);
+            }
+            args.x = $gameMap.convertToScreenX(args.x);
+            args.y = $gameMap.convertToScreenY(args.y);
+        }
         this.requestAnimationByPoint(args);
     });
 
-    PluginManagerEx.registerCommand(script, 'SHOW_ANIMATION_BY_MAP_POINT', function(args) {
-        args.x = $gameMap.convertToScreenX(args.x);
-        args.y = $gameMap.convertToScreenY(args.y);
-        this.requestAnimationByPoint(args);
+    PluginManagerEx.registerCommand(script, 'REMOVE_ANIMATION', function(args) {
+        $gameTemp.removePointAnimation(args.label);
     });
 
     Game_Map.prototype.convertToScreenX = function(mapX) {
@@ -167,10 +195,27 @@
 
     Game_Interpreter.prototype.requestAnimationByPoint = function(args) {
         const point = new Game_AnimationPoint(args);
-        $gameTemp.requestAnimation([point], args.id);
+        point.request();
         if (args.wait) {
             this.setWaitMode("pointAnimation");
         }
+    };
+
+    Game_Temp.prototype.pushPointAnimation = function(point) {
+        if (!this._pointQueue) {
+            this._pointQueue = [];
+        }
+        this._pointQueue.push(point);
+    };
+
+    Game_Temp.prototype.removePointAnimation = function(label) {
+        if (!this._pointQueue) {
+            return;
+        }
+        this._pointQueue
+            .filter(target => target.getLabel() === label)
+            .forEach(target => target.endLoop());
+        this._pointQueue = this._pointQueue.filter(target => target.isAnimationPlaying());
     };
 
     Spriteset_Base.prototype.findPointTargetSprite = function(point) {
@@ -193,6 +238,15 @@
         })
     };
 
+    const _Spriteset_Map_removeBalloon = Spriteset_Map.prototype.removeBalloon;
+    Spriteset_Map.prototype.removeBalloon = function(sprite) {
+        _Spriteset_Map_removeBalloon.apply(this, arguments);
+        const targetSprite = sprite._target;
+        if (targetSprite instanceof Sprite_AnimationPoint) {
+            this.removeChild(targetSprite);
+        }
+    };
+
     const _Spriteset_Map_findTargetSprite = Spriteset_Map.prototype.findTargetSprite
     Spriteset_Map.prototype.findTargetSprite = function(target) {
         const sprite = _Spriteset_Map_findTargetSprite.apply(this, arguments);
@@ -203,6 +257,17 @@
     Spriteset_Battle.prototype.findTargetSprite = function(target) {
         const sprite = _Spriteset_Battle_findTargetSprite.apply(this, arguments);
         return sprite ? sprite : this.findPointTargetSprite(target);
+    };
+
+    const _Spriteset_Base_isAnimationPlaying = Spriteset_Base.prototype.isAnimationPlaying;
+    Spriteset_Base.prototype.isAnimationPlaying = function() {
+        const result = _Spriteset_Base_isAnimationPlaying.apply(this, arguments);
+        if (result) {
+            if (this._animationSprites.every(sprite => sprite.targetObjects[0] instanceof Point)) {
+                return false;
+            }
+        }
+        return result;
     };
 
     let pointAnimationCount = 0;
@@ -221,30 +286,125 @@
         }
     };
 
+    const _Spriteset_Base_createAnimationSprite = Spriteset_Base.prototype.createAnimationSprite;
+    Spriteset_Base.prototype.createAnimationSprite = function(
+        targets, animation, mirror, delay
+    ) {
+        _Spriteset_Base_createAnimationSprite.apply(this, arguments);
+        const sprite = this._animationSprites[this._animationSprites.length - 1];
+        const point = sprite.targetObjects[0];
+        if (point instanceof Game_AnimationPoint) {
+            sprite.rotation = point.getRotation();
+        }
+    }
+
     class Game_AnimationPoint extends Point {
         constructor(args) {
             super(args.x, args.y);
             this._wait = args.wait;
+            this._scroll = args.scroll;
+            this._label = args.label;
+            this._loop = args.loop;
+            this._animationId = args.id;
+            this._balloonId = args.balloonId;
+            this._rotation = (args.angle || 0) * Math.PI / 180;
+        }
+
+        request() {
+            if (this._animationId > 0) {
+                $gameTemp.requestAnimation([this], this._animationId);
+            } else if (this._balloonId > 0) {
+                $gameTemp.requestBalloon(this, this._balloonId);
+            }
+            if (this._label) {
+                $gameTemp.pushPointAnimation(this);
+            }
+        }
+
+        endLoop() {
+            this._loop = false;
+            if (this._animationId) {
+                this.endAnimation();
+            } else if (this._balloonId > 0) {
+                this.endBalloon();
+            }
         }
 
         startAnimation() {
             if (this._wait) {
                 pointAnimationCount++;
             }
+            this._playing = true;
         }
 
         endAnimation() {
             if (this._wait) {
                 pointAnimationCount--;
             }
+            this._playing = false;
+            if (this._loop) {
+                this._wait = false;
+                this.request();
+            }
+        }
+
+        startBalloon() {
+            if (this._wait) {
+                pointAnimationCount++;
+            }
+            this._playing = true;
+        }
+
+        endBalloon() {
+            if (this._wait) {
+                pointAnimationCount--;
+            }
+            this._playing = false;
+            if (this._loop) {
+                this._wait = false;
+                this.request();
+            }
+        }
+
+        isScroll() {
+            return this._scroll;
+        }
+
+        isAnimationPlaying() {
+            return this._playing;
+        }
+
+        isBalloonPlaying() {
+            return this._playing;
+        }
+
+        getLabel() {
+            return this._label;
+        }
+
+        getRotation() {
+            return this._rotation;
         }
     }
 
     class Sprite_AnimationPoint extends Sprite {
         constructor(point) {
             super();
-            this.x = point.x;
-            this.y = point.y;
+            this._point = point;
+            this._dx = $gameMap.displayX();
+            this._dy = $gameMap.displayY();
+            this.rotation = this._point.getRotation();
+            this.update();
+        }
+
+        update() {
+            super.update();
+            this.x = this._point.x;
+            this.y = this._point.y;
+            if (this._point.isScroll()) {
+                this.x += (this._dx - $gameMap.displayX()) * $gameMap.tileWidth();
+                this.y += (this._dy - $gameMap.displayY()) * $gameMap.tileWidth();
+            }
         }
     }
 })();

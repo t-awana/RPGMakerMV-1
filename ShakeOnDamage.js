@@ -6,6 +6,7 @@
 // http://opensource.org/licenses/mit-license.php
 // ----------------------------------------------------------------------------
 // Version
+// 1.1.0 2024/06/09 振動を一時的に無効化するスイッチを追加
 // 1.0.0 2020/06/15 MV版から流用作成
 // ----------------------------------------------------------------------------
 // [Blog]   : https://triacontane.blogspot.jp/
@@ -14,119 +15,153 @@
 //=============================================================================
 
 /*:
- * @plugindesc ShakeOnDamagePlugin
- * @author triacontane
+ * @plugindesc Screen shake on damage plugin
+ * @author Triacontane
  * @target MZ
+ * @base PluginCommonBase
+ * @orderAfter PluginCommonBase
  * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/ShakeOnDamage.js
  *
- * @param ShakePower
- * @desc This is the shake strength when you take normal damage.
+ * @param shakePower
+ * @text Shake Power
+ * @desc The shake power when taking normal damage.
  * @default 5
  * @type number
  * @min 1
  * @max 9
  *
- * @param CriticalShakePower
- * @desc This is the shake strength when you take critical damage.
+ * @param criticalShakePower
+ * @text Critical Shake Power
+ * @desc The shake power when taking critical damage.
  * @default 9
  * @type number
  * @min 1
  * @max 9
  *
- * @param EffectiveShakePower
- * @desc This is the shake strength when you take weakness damage.
+ * @param effectiveShakePower
+ * @text Weakness Shake Power
+ * @desc The shake power when taking weakness damage.
  * @default 9
  * @type number
  * @min 1
  * @max 9
  *
- * @param ShakeSpeed
- * @desc Shake speed.
+ * @param shakeSpeed
+ * @text Shake Speed
+ * @desc The speed of the shake effect.
  * @default 9
  * @type number
  * @min 1
  * @max 9
  *
- * @param ShakeDuration
- * @desc Shake time (frames).
+ * @param shakeDuration
+ * @text Shake Duration
+ * @desc The duration of the shake effect (in frames).
  * @default 30
  * @type number
  *
- * @param ApplyActor
- * @desc Shake when the actor does damage.
+ * @param applyActor
+ * @text Apply to Actors
+ * @desc Shake the screen when actors take damage.
  * @default true
  * @type boolean
  *
- * @param ApplyEnemy
- * @desc Shake when the enemy does damage.
+ * @param applyEnemy
+ * @text Apply to Enemies
+ * @desc Shake the screen when enemies take damage.
  * @default false
  * @type boolean
  *
+ * @param disableSwitch
+ * @text Disable Switch
+ * @desc When the specified switch is ON, the shake effect is disabled.
+ * @default 0
+ * @type switch
+ *
  * @help ShakeOnDamage.js
  *
- * Shake the screen when an actor takes damage in combat.
- * You can change the strength between critical and normal.
+ * This plugin shakes the screen when an actor takes damage in battle.
+ * You can set different shake powers for normal and critical damage.
  *
- * A formula can be applied to each parameter. In addition, you can also set a local variable
- * The following can be used
- * a : Target actor that took damage.
- * r : percentage of remaining HP of the target actor that took damage (0-100).
+ * Each parameter can accept a calculation formula.
+ * The following local variables can be used:
+ *  a : The actor who took damage.
+ *  r : The remaining HP rate (0–100) of the actor who took damage.
  *
- * To enter a formula, select the "Text" tab in the Parameter Settings dialog.
- * Please make your selection and then enter it.
+ * If you want to use a calculation formula, select the “Text” tab
+ * in the parameter setting dialog before entering it.
  *
- * There are no plugin commands in this plugin.
+ * This plugin does not provide any plugin commands.
  *
- * This plugin is released under the MIT License.
+ * Terms of Use:
+ *  You may modify and redistribute this plugin without permission.
+ *  There are no restrictions on its use, including commercial and adult use.
+ *  This plugin is now yours.
  */
+
 /*:ja
  * @plugindesc ダメージ時の振動プラグイン
  * @author トリアコンタン
  * @target MZ
+ * @base PluginCommonBase
+ * @orderAfter PluginCommonBase
  * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/ShakeOnDamage.js
  *
- * @param シェイク強さ
+ * @param shakePower
+ * @text シェイク強さ
  * @desc 通常ダメージを受けたときのシェイク強さです。
  * @default 5
  * @type number
  * @min 1
  * @max 9
  *
- * @param クリティカルシェイク強さ
+ * @param criticalShakePower
+ * @text クリティカルシェイク強さ
  * @desc クリティカルダメージを受けたときのシェイク強さです。
  * @default 9
  * @type number
  * @min 1
  * @max 9
  *
- * @param 弱点シェイク強さ
+ * @param effectiveShakePower
+ * @text 弱点シェイク強さ
  * @desc 弱点ダメージを受けたときのシェイク強さです。
  * @default 9
  * @type number
  * @min 1
  * @max 9
  *
- * @param シェイク速さ
+ * @param shakeSpeed
+ * @text シェイク速さ
  * @desc シェイク速さです。
  * @default 9
  * @type number
  * @min 1
  * @max 9
  *
- * @param シェイク時間
+ * @param shakeDuration
+ * @text シェイク時間
  * @desc シェイク時間(フレーム)です。
  * @default 30
  * @type number
  *
- * @param アクターに適用
+ * @param applyActor
+ * @text アクターに適用
  * @desc アクターのダメージ時にシェイクします。
  * @default true
  * @type boolean
  *
- * @param 敵キャラに適用
+ * @param applyEnemy
+ * @text 敵キャラに適用
  * @desc 敵キャラのダメージ時にシェイクします。
  * @default false
  * @type boolean
+ *
+ * @param disableSwitch
+ * @text 無効スイッチ
+ * @desc 指定したスイッチがONのときは振動を無効にします。
+ * @default 0
+ * @type switch
  *
  * @help ShakeOnDamage.js
  *
@@ -149,49 +184,95 @@
  *  このプラグインはもうあなたのものです。
  */
 
-(() => {
+/*:zh
+ * @plugindesc 受到伤害时的画面震动插件
+ * @author triacontane
+ * @target MZ
+ * @base PluginCommonBase
+ * @orderAfter PluginCommonBase
+ * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/ShakeOnDamage.js
+ *
+ * @param shakePower
+ * @text 普通伤害震动强度
+ * @desc 角色受到普通伤害时的画面震动强度。
+ * @default 5
+ * @type number
+ * @min 1
+ * @max 9
+ *
+ * @param criticalShakePower
+ * @text 暴击震动强度
+ * @desc 角色受到暴击伤害时的画面震动强度。
+ * @default 9
+ * @type number
+ * @min 1
+ * @max 9
+ *
+ * @param effectiveShakePower
+ * @text 弱点震动强度
+ * @desc 角色受到克制（弱点）伤害时的画面震动强度。
+ * @default 9
+ * @type number
+ * @min 1
+ * @max 9
+ *
+ * @param shakeSpeed
+ * @text 震动速度
+ * @desc 画面震动的速度。
+ * @default 9
+ * @type number
+ * @min 1
+ * @max 9
+ *
+ * @param shakeDuration
+ * @text 震动持续时间
+ * @desc 震动的持续帧数。
+ * @default 30
+ * @type number
+ *
+ * @param applyActor
+ * @text 应用于角色
+ * @desc 当角色受到伤害时是否进行震动。
+ * @default true
+ * @type boolean
+ *
+ * @param applyEnemy
+ * @text 应用于敌人
+ * @desc 当敌人受到伤害时是否进行震动。
+ * @default false
+ * @type boolean
+ *
+ * @param disableSwitch
+ * @text 禁用开关
+ * @desc 当指定的开关为 ON 时，将禁用画面震动效果。
+ * @default 0
+ * @type switch
+ *
+ * @help ShakeOnDamage.js
+ *
+ * 当角色在战斗中受到伤害时，屏幕会震动。
+ * 普通伤害和会心伤害可以设置不同的震动强度。
+ *
+ * 各参数可使用计算公式。
+ * 可用的本地变量如下：
+ * a：受到伤害的角色对象
+ * r：受到伤害的角色当前HP比例（0-100）
+ *
+ * 如果要输入计算公式，请在参数设置窗口中
+ * 选择“文本”标签后输入。
+ *
+ * 本插件没有插件命令。
+ *
+ * 使用条款：
+ *  允许自由修改与再分发，无需获得作者许可。
+ *  使用形式（商用、18禁等）不受限制。
+ *  这个插件现在属于你了。
+ */
+
+(()=> {
     'use strict';
-    const pluginName = 'ShakeOnDamage';
-
-    //=============================================================================
-    // ローカル関数
-    //  プラグインパラメータやプラグインコマンドパラメータの整形やチェックをします
-    //=============================================================================
-    const getParamString = function(paramNames) {
-        if (!Array.isArray(paramNames)) paramNames = [paramNames];
-        for(let i = 0; i < paramNames.length; i++) {
-            const name = PluginManager.parameters(pluginName)[paramNames[i]];
-            if (name) return name;
-        }
-        return '';
-    };
-
-    const getParamBoolean = function(paramNames) {
-        const value = getParamString(paramNames).toUpperCase();
-        return value === 'TRUE';
-    };
-
-    const convertEscapeCharacters = function(text) {
-        if (isNotAString(text)) text = '';
-        const windowLayer = SceneManager._scene._windowLayer;
-        return windowLayer ? windowLayer.children[0].convertEscapeCharacters(text) : text;
-    };
-
-    const isNotAString = function(args) {
-        return String(args) !== args;
-    };
-
-    //=============================================================================
-    // パラメータの取得と整形
-    //=============================================================================
-    const param                 = {};
-    param.shakePower          = getParamString(['ShakePower', 'シェイク強さ']);
-    param.criticalShakePower  = getParamString(['CriticalShakePower', 'クリティカルシェイク強さ']);
-    param.effectiveShakePower = getParamString(['EffectiveShakePower', '弱点シェイク強さ']);
-    param.shakeSpeed          = getParamString(['ShakeSpeed', 'シェイク速さ']);
-    param.shakeDuration       = getParamString(['ShakeDuration', 'シェイク時間']);
-    param.applyActor          = getParamBoolean(['ApplyActor', 'アクターに適用']);
-    param.applyEnemy          = getParamBoolean(['ApplyEnemy', '敵キャラに適用']);
+    const script = document.currentScript;
+    const param = PluginManagerEx.createParameter(script);
 
     //=============================================================================
     // Game_Battler
@@ -239,24 +320,25 @@
         return this.convertShakeParameter(power);
     };
 
-    Game_Battler.prototype.convertShakeParameter = function(param) {
-        const convertParam = convertEscapeCharacters(param);
+    Game_Battler.prototype.convertShakeParameter = function(value) {
         // use in eval
-        const a            = this;
-        const r            = a.hpRate() * 100;
-        return isNaN(Number(convertParam)) ? eval(convertParam) : parseInt(convertParam);
+        const a= this;
+        const r = a.hpRate() * 100;
+        return isNaN(value) ? eval(value) : value;
     };
 
     Game_Battler.prototype.isShakeOnDamage = function() {
-        return false;
+        return !$gameSwitches.value(param.disableSwitch);
     };
 
+    const _Game_Actor_isShakeOnDamage = Game_Actor.prototype.isShakeOnDamage;
     Game_Actor.prototype.isShakeOnDamage = function() {
-        return param.applyActor;
+        return _Game_Actor_isShakeOnDamage.apply(this, arguments) && param.applyActor;
     };
 
+    const _Game_Enemy_isShakeOnDamage = Game_Enemy.prototype.isShakeOnDamage;
     Game_Enemy.prototype.isShakeOnDamage = function() {
-        return param.applyEnemy;
+        return _Game_Enemy_isShakeOnDamage.apply(this, arguments) && param.applyEnemy;
     };
 
     //=============================================================================
@@ -276,4 +358,3 @@
         return result;
     };
 })();
-

@@ -1,61 +1,75 @@
 //=============================================================================
 // DirectivityShake.js
 // ----------------------------------------------------------------------------
-// Copyright (c) 2015-2016 Triacontane
+// (C)2016 Triacontane
 // This software is released under the MIT License.
 // http://opensource.org/licenses/mit-license.php
 // ----------------------------------------------------------------------------
 // Version
+// 1.2.0 2022/01/08 ランダムシェイクするコマンドを追加
+// 1.1.1 2021/07/10 SINカーブで始点が0でなくなる問題を修正
+// 1.1.0 2021/01/10 MZで動作するよう修正
 // 1.0.0 2016/11/03 初版
 // ----------------------------------------------------------------------------
-// [Blog]   : http://triacontane.blogspot.jp/
+// [Blog]   : https://triacontane.blogspot.jp/
 // [Twitter]: https://twitter.com/triacontane/
 // [GitHub] : https://github.com/triacontane/
 //=============================================================================
 
-/*:
- * @plugindesc DirectivityShakePlugin
- * @target MZ @url https://github.com/triacontane/RPGMakerMV/tree/mz_master @author triacontane
- *
- * @help イベントコマンド「画面のシェイク」に指向性を持たせることができます。
- * 角度を指定して縦や斜めに振動させることが可能です。
- *
- * また、振動方法を通常の方法以外にsin波に設定できます。独特の抑揚がつきます。
- *
- * 「画面のシェイク」を行う直前に、必要に応じて以下のコマンドを実行してください。
- * なお、シェイクが終了すると設定は自動でリセットされます。
- *
- * プラグインコマンド詳細
- *  イベントコマンド「プラグインコマンド」から実行。
- *  （パラメータの間は半角スペースで区切る）
- *
- * DS_方向設定 90     # 角度[90度]で振動します。(角度:0...360)
- * DS_SET_ROTATION 90 # 同上
- * DS_SIN振動         # 振動をsin波に設定します。
- * DS_SIN_WAVE        # 同上
- *
- * This plugin is released under the MIT License.
- */
 /*:ja
  * @plugindesc 指向性シェイクプラグイン
- * @target MZ @url https://github.com/triacontane/RPGMakerMV/tree/mz_master @author トリアコンタン
+ * @target MZ
+ * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/DirectivityShake.js
+ * @base PluginCommonBase
+ * @orderAfter PluginCommonBase
+ * @author トリアコンタン
+ *
+ * @command SHAKE_SETTING
+ * @text シェイク指向設定
+ * @desc 「画面のシェイク」コマンドに方向やSINカーブを設定します。
+ *
+ * @arg rotation
+ * @text 角度
+ * @desc 指定した角度でシェイクします。(0-360)
+ * @default 0
+ * @type number
+ * @min 0
+ * @max 360
+ *
+ * @arg sinWave
+ * @text SINカーブ
+ * @desc 有効にすると振動がSINカーブを描くようになります。
+ * @default false
+ * @type boolean
+ *
+ * @command RANDOM_SHAKE_SETTING
+ * @text ランダムシェイク設定
+ * @desc 「画面のシェイク」コマンドの角度をランダムにします。
+ *
+ * @arg sinWave
+ * @text SINカーブ
+ * @desc 有効にすると振動がSINカーブを描くようになります。
+ * @default false
+ * @type boolean
+ *
+ * @arg interval
+ * @text 更新間隔
+ * @desc シェイク中に角度が更新される間隔です。0を指定すると更新されなくなります。
+ * @default 1
+ * @type number
  *
  * @help イベントコマンド「画面のシェイク」に指向性を持たせることができます。
  * 角度を指定して縦や斜めに振動させることが可能です。
  *
- * また、振動方法を通常の方法以外にsin波に設定できます。独特の抑揚がつきます。
+ * また振動方法を通常の方法以外にsinカーブに設定できます。独特の抑揚がつきます。
  *
- * 「画面のシェイク」を行う直前に、必要に応じて以下のコマンドを実行してください。
- * なお、シェイクが終了すると設定は自動でリセットされます。
- *
- * プラグインコマンド詳細
- *  イベントコマンド「プラグインコマンド」から実行。
- *  （パラメータの間は半角スペースで区切る）
- *
- * DS_方向設定 90     # 角度[90度]で振動します。(角度:0...360)
- * DS_SET_ROTATION 90 # 同上
- * DS_SIN振動         # 振動をsin波に設定します。
- * DS_SIN_WAVE        # 同上
+ * 「画面のシェイク」を行う直前に、プラグインコマンドを実行してください。
+ * シェイクが終了すると設定は自動でリセットされます。
+ * 
+ * このプラグインの利用にはベースプラグイン『PluginCommonBase.js』が必要です。
+ * 『PluginCommonBase.js』は、RPGツクールMZのインストールフォルダ配下の
+ * 以下のフォルダに格納されています。
+ * dlc/BasicResources/plugins/official
  *
  * 利用規約：
  *  作者に無断で改変、再配布が可能で、利用形態（商用、18禁利用等）
@@ -63,66 +77,17 @@
  *  このプラグインはもうあなたのものです。
  */
 
-(function() {
+(()=> {
     'use strict';
-    var metaTagPrefix = 'DS_';
+    const script = document.currentScript;
 
-    var getCommandName = function(command) {
-        return (command || '').toUpperCase();
-    };
+    PluginManagerEx.registerCommand(script, 'SHAKE_SETTING', args => {
+        $gameScreen.setShakeRotation(args.rotation, args.sinWave);
+    });
 
-    var getArgNumber = function(arg, min, max) {
-        if (arguments.length < 2) min = -Infinity;
-        if (arguments.length < 3) max = Infinity;
-        return (parseInt(convertEscapeCharacters(arg), 10) || 0).clamp(min, max);
-    };
-
-    var convertEscapeCharacters = function(text) {
-        if (text == null) text = '';
-        var windowLayer = SceneManager._scene._windowLayer;
-        return windowLayer ? windowLayer.children[0].convertEscapeCharacters(text) : text;
-    };
-
-    //=============================================================================
-    // Game_Interpreter
-    //  プラグインコマンドを追加定義します。
-    //=============================================================================
-    var _Game_Interpreter_pluginCommand      = Game_Interpreter.prototype.pluginCommand;
-    Game_Interpreter.prototype.pluginCommand = function(command, args) {
-        _Game_Interpreter_pluginCommand.apply(this, arguments);
-        var commandPrefix = new RegExp('^' + metaTagPrefix);
-        if (!command.match(commandPrefix)) return;
-        try {
-            this.pluginCommandDirectivityShake(command.replace(commandPrefix, ''), args);
-        } catch (e) {
-            if ($gameTemp.isPlaytest() && Utils.isNwjs()) {
-                var window = require('nw.gui').Window.get();
-                if (!window.isDevToolsOpen()) {
-                    var devTool = window.showDevTools();
-                    devTool.moveTo(0, 0);
-                    devTool.resizeTo(window.screenX + window.outerWidth, window.screenY + window.outerHeight);
-                    window.focus();
-                }
-            }
-            console.log('プラグインコマンドの実行中にエラーが発生しました。');
-            console.log('- コマンド名 　: ' + command);
-            console.log('- コマンド引数 : ' + args);
-            console.log('- エラー原因   : ' + e.stack || e.toString());
-        }
-    };
-
-    Game_Interpreter.prototype.pluginCommandDirectivityShake = function(command, args) {
-        switch (getCommandName(command)) {
-            case '方向設定' :
-            case 'SET_ROTATION' :
-                $gameScreen.setShakeRotation(getArgNumber(args[0]));
-                break;
-            case 'SIN振動' :
-            case 'SIN_WAVE' :
-                $gameScreen.setShakeSinWave();
-                break;
-        }
-    };
+    PluginManagerEx.registerCommand(script, 'RANDOM_SHAKE_SETTING', args => {
+        $gameScreen.setShakeRandom(args.interval, args.sinWave);
+    });
 
     //=============================================================================
     // Game_Screen
@@ -132,15 +97,19 @@
         return this._shakeRotation;
     };
 
-    Game_Screen.prototype.setShakeRotation = function(value) {
+    Game_Screen.prototype.setShakeRotation = function(value, sin) {
         this._shakeRotation = value * Math.PI / 180;
+        this._shakeSinWave = sin;
+        this._shakeRandomInterval = 0;
     };
 
-    Game_Screen.prototype.setShakeSinWave = function() {
-        this._shakeSinWave = true;
+    Game_Screen.prototype.setShakeRandom = function(interval, sin) {
+        this._shakeRotation = Math.randomInt(360) * Math.PI / 180;
+        this._shakeSinWave = sin;
+        this._shakeRandomInterval = interval;
     };
 
-    var _Game_Screen_clearShake = Game_Screen.prototype.clearShake;
+    const _Game_Screen_clearShake = Game_Screen.prototype.clearShake;
     Game_Screen.prototype.clearShake = function() {
         _Game_Screen_clearShake.apply(this, arguments);
         this.clearDirectivityShake();
@@ -151,9 +120,12 @@
         this._shakeSinWave  = false;
     };
 
-    var _Game_Screen_updateShake = Game_Screen.prototype.updateShake;
+    const _Game_Screen_updateShake = Game_Screen.prototype.updateShake;
     Game_Screen.prototype.updateShake = function() {
-        var wasShake = this.isNeedShakeUpdate();
+        const wasShake = this.isNeedShakeUpdate();
+        if (this._shakeRandomInterval > 0 && Graphics.frameCount % this._shakeRandomInterval === 0) {
+            this._shakeRotation = Math.randomInt(360) * Math.PI / 180;
+        }
         if (this._shakeSinWave && wasShake) {
             this.updateSinShake();
         } else {
@@ -164,9 +136,23 @@
         }
     };
 
+    const _Game_Screen_startShake = Game_Screen.prototype.startShake;
+    Game_Screen.prototype.startShake = function(power, speed, duration) {
+        _Game_Screen_startShake.apply(this, arguments);
+        this._shakeDurationTarget = duration;
+    };
+
     Game_Screen.prototype.updateSinShake = function() {
-        this._shake = Math.sin(3 * this._shakeDuration * this._shakeSpeed * Math.PI / 180) * this._shakePower * 3;
+        const pos = this._shakeDurationTarget - this._shakeDuration;
+        this._shake = Math.sin(3 * pos * this._shakeSpeed * Math.PI / 180) * this._shakePower * 3;
         this._shakeDuration--;
+        if (this._shakeDuration === 0) {
+            this._lastShake = this._shake;
+        }
+        if (this._lastShake * this._shake < 0) {
+            this._shake = 0;
+            this._lastShake = 0;
+        }
     };
 
     Game_Screen.prototype.isNeedShakeUpdate = function() {
@@ -177,12 +163,12 @@
     // Spriteset_Base
     //  シェイクの方向を反映します。
     //=============================================================================
-    var _Spriteset_Base_updatePosition = Spriteset_Base.prototype.updatePosition;
+    const _Spriteset_Base_updatePosition = Spriteset_Base.prototype.updatePosition;
     Spriteset_Base.prototype.updatePosition = function() {
         _Spriteset_Base_updatePosition.apply(this, arguments);
-        var shakeRotation  = $gameScreen.getShakeRotation();
+        const shakeRotation  = $gameScreen.getShakeRotation();
         if (shakeRotation) {
-            var shakeDistance = Math.round($gameScreen.shake());
+            const shakeDistance = Math.round($gameScreen.shake());
             this.x -= shakeDistance;
             this.x += Math.cos(shakeRotation) * shakeDistance;
             this.y += Math.sin(shakeRotation) * shakeDistance;

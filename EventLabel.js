@@ -6,6 +6,17 @@
  http://opensource.org/licenses/mit-license.php
 ----------------------------------------------------------------------------
  Version
+ 1.6.1 2024/08/31 テールに縁取りが含まれていなかったので追加
+ 1.6.0 2024/08/31 ラベルに縁取りできる機能を追加
+ 1.5.0 2023/08/17 ラベルのZ座標を変更できる機能を追加
+ 1.4.0 2023/05/13 すべてのラベルを一時的に非表示にできる機能を追加
+ 1.3.1 2022/10/16 ベースプラグインの説明を追加
+ 1.3.0 2022/10/16 ラベル位置によってはテールを上向きに表示するよう変更
+ 1.2.0 2022/10/16 ラベルにフキダシ(テール)を表示できる機能を追加
+ 1.1.6 2022/02/01 イベントラベルに制御文字を使ったとき、変数値の変更がリアルタイムで反映されない問題を修正
+ 1.1.5 2021/11/18 メモ欄<LB>に半角数値のみを指定するとエラーになる問題を修正
+ 1.1.4 2021/06/12 ラベルのZ座標をイベントのプライオリティとは無関係に6で設定するよう変更
+ 1.1.3 2021/05/07 動的生成したイベントを消去したときにラベルが残ってしまう競合を修正
  1.1.2 2020/09/26 1.1.0でイベントIDを0で指定していた場合に表示されない問題を修正
  1.1.1 2020/09/26 ラベル表示条件のヘルプを書き忘れていたので追加
  1.1.0 2020/09/26 ラベルの表示条件にスイッチ、セルフスイッチを追加
@@ -25,6 +36,7 @@
  * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/EventLabel.js
  * @author triacontane
  * @base PluginCommonBase
+ * @orderAfter PluginCommonBase
  *
  * @param showDefault
  * @desc You don't need to set anything up to see the label in the event name.
@@ -53,6 +65,11 @@
  * @desc The padding of the label.
  * @default 2
  *
+ * @param invisibleSwitchId
+ * @desc 指定したスイッチがONのとき、すべてのラベルを非表示にします。
+ * @default 0
+ * @type switch
+ *
  * @command SHOW_LABEL
  * @text Show label
  * @desc Displays the label of the event. If you specify empty, the label is cleared.
@@ -73,6 +90,35 @@
  * @desc The font size of the label.
  * @default 0
  *
+ * @param showTail
+ * @text Show label tail
+ * @desc Show label tail
+ * @default false
+ * @type boolean
+ *
+ * @param tailWidth
+ * @text Tail width
+ * @desc テールを表示する場合の横幅です。
+ * @default 12
+ * @type number
+ *
+ * @param tailHeight
+ * @text テール高さ
+ * @desc テールを表示する場合の高さです。
+ * @default 8
+ * @type number
+ *
+ * @param borderColor
+ * @text 縁取りカラー
+ * @desc ラベルの縁取りカラーです。赤、緑、青、不透明度の順で設定します。
+ * @default rgba(0,0,255,1)
+ *
+ * @param borderSize
+ * @text 縁取りサイズ
+ * @desc ラベルの縁取りサイズです。
+ * @default 0
+ * @type number
+ *
  * @help EventLabel.js
  *　
  * The label appears at the top of the event. Specify the following in the memo field.
@@ -83,6 +129,7 @@
  * <LB_Y:-4> // Shifts the label's position in the Y direction.
  * <LB_S:1>  // The label is displayed when the switch [1] is ON.
  * <LB_S:A>  // The label is displayed when the self-switch [A] is ON.
+ * <LB_Z:2>
  *
  * The base plugin "PluginCommonBase.js" is required to use this plugin.
  * The "PluginCommonBase.js" is here.
@@ -95,6 +142,7 @@
  * @target MZ
  * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/EventLabel.js
  * @base PluginCommonBase
+ * @orderAfter PluginCommonBase
  * @author トリアコンタン
  *
  * @param showDefault
@@ -119,6 +167,7 @@
  * @text フォントサイズ
  * @desc ラベルのフォントサイズです。
  * @default 16
+ * @type number
  *
  * @param backColor
  * @text 背景カラー
@@ -129,6 +178,41 @@
  * @text 余白
  * @desc ラベルの余白です。
  * @default 2
+ *
+ * @param borderColor
+ * @text 縁取りカラー
+ * @desc ラベルの縁取りカラーです。赤、緑、青、不透明度の順で設定します。
+ * @default rgba(0,0,255,1)
+ *
+ * @param borderSize
+ * @text 縁取りサイズ
+ * @desc ラベルの縁取りサイズです。
+ * @default 0
+ * @type number
+ *
+ * @param showTail
+ * @text テール表示
+ * @desc ラベルの下部に三角形のテールがデフォルトで表示されます。
+ * @default false
+ * @type boolean
+ *
+ * @param tailWidth
+ * @text テール横幅
+ * @desc テールを表示する場合の横幅です。
+ * @default 12
+ * @type number
+ *
+ * @param tailHeight
+ * @text テール高さ
+ * @desc テールを表示する場合の高さです。
+ * @default 8
+ * @type number
+ *
+ * @param invisibleSwitchId
+ * @text 非表示スイッチID
+ * @desc 指定したスイッチがONのとき、すべてのラベルを非表示にします。
+ * @default 0
+ * @type switch
  * 
  * @command SHOW_LABEL
  * @text ラベル表示
@@ -155,11 +239,20 @@
  * イベントの上部にラベルを表示します。メモ欄に以下の通り指定してください。
  * <LB:name> // ラベル[name]が表示されます。
  * <LB>      // イベント名でラベルが表示されます。
- * <LB_No>   // ラベルが表示されなくなります。(『デフォルトで表示』が有効な場合)
+ * <LB_No>   // ラベルが表示されなくなります。
+ * (『デフォルトで表示』が有効な場合)
  * <LB_X:4>  // ラベルのX方向の位置をずらします。
  * <LB_Y:-4> // ラベルのY方向の位置をずらします。
  * <LB_S:1>  // スイッチ[1]がONのときラベル表示します。
  * <LB_S:A>  // セルフスイッチ[A]がONのときラベル表示します。
+ * <LB_T:true> // テールを表示します。プラグインパラメータより優先されます。
+ * <LB_T:false> // テールを表示しません。プラグインパラメータより優先されます。
+ * <LB_Z:2> // ラベルのZ座標を2(通常キャラの下)にします。デフォルトは6です。
+ *
+ * このプラグインの利用にはベースプラグイン『PluginCommonBase.js』が必要です。
+ * 『PluginCommonBase.js』は、RPGツクールMZのインストールフォルダ配下の
+ * 以下のフォルダに格納されています。
+ * dlc/BasicResources/plugins/official
  *
  * 利用規約：
  *  作者に無断で改変、再配布が可能で、利用形態（商用、18禁利用等）
@@ -190,7 +283,9 @@
         this._labelSize = param.fontSize || 16;
         this._labelX = PluginManagerEx.findMetaValue(this.event(), 'LB_X') || 0;
         this._labelY = PluginManagerEx.findMetaValue(this.event(), 'LB_Y') || 0;
+        this._labelZ = PluginManagerEx.findMetaValue(this.event(), 'LB_Z') || 0;
         this._labelSwitch = PluginManagerEx.findMetaValue(this.event(), 'LB_S') || null;
+        this._labelTail = PluginManagerEx.findMetaValue(this.event(), 'LB_T');
     };
 
     Game_Event.prototype.findLabelX = function() {
@@ -202,13 +297,17 @@
     };
 
     Game_Event.prototype.findLabelZ = function() {
-        return this.screenZ() + 1;
+        return this._labelZ || 6;
+    };
+
+    Game_Event.prototype.isLabelTailTop = function() {
+        return this.isNeedLabelTail() && this._labelY - $gameMap.tileHeight() >= 0;
     };
 
     Game_Event.prototype.findLabelName = function() {
-        const metaLabel = PluginManagerEx.findMetaValue(this.event(), 'LB');
+        const metaLabel = this.event().meta['LB'];
         if (metaLabel && metaLabel !== true) {
-            return metaLabel;
+            return String(metaLabel);
         } else {
             return param.showDefault || metaLabel ? this.findLabelEventName() : null;
         }
@@ -262,6 +361,10 @@
         return param.hideNoImage && !this._characterName && !this._tileId;
     };
 
+    Game_Event.prototype.isNeedLabelTail = function() {
+        return this._labelTail !== undefined ? this._labelTail : param.showTail;
+    };
+
     /**
      * Spriteset_Map
      */
@@ -285,6 +388,11 @@
                 this.removeEventLabel(event.eventId());
             }
         }
+        Object.keys(this._eventLabelSprites).forEach(id => {
+            if (!this._eventLabelSprites[id].event()) {
+                this.removeEventLabel(id);
+            }
+        });
     };
 
     Spriteset_Map.prototype.addEventLabel = function(id) {
@@ -326,6 +434,13 @@
             }
             this.updateLabel(event);
             this.updatePosition(event);
+            this.updateVisibly();
+        }
+
+        updateVisibly() {
+            if (param.invisibleSwitchId) {
+                this.visible = !$gameSwitches.value(param.invisibleSwitchId);
+            }
         }
 
         updatePosition(event) {
@@ -353,7 +468,7 @@
 
         refresh() {
             const dummyWindow = new Window_Dummy();
-            this.bitmap       = dummyWindow.createTextBitmap(this._text, this._size);
+            this.bitmap       = dummyWindow.createTextBitmap(this._text, this._size, this.event());
         }
     }
 
@@ -365,20 +480,61 @@
             super(new Rectangle());
         }
 
-        createTextBitmap(text, fontSize) {
+        createTextBitmap(text, fontSize, event) {
             this._fontSize = fontSize;
             this.resetFontSettings();
             const bitmapSize = this.textSizeEx(text);
+            const b = param.borderSize || 0;
             const p = param.padding || 0;
+            const pAndB = p + b;
             this.padding     = 0;
-            this.move(0, 0, bitmapSize.width + p * 2, bitmapSize.height + p * 2);
+            this.move(0, 0, bitmapSize.width + pAndB * 2, bitmapSize.height + pAndB * 2);
+            const labelHeight = this.height;
+            if (event.isNeedLabelTail()) {
+                this.height += param.tailHeight;
+            }
             this.createContents();
-            this.contents.fillAll(param.backColor || 'rgba(0,0,0,0.5)');
-            this.drawTextEx(text, p, p, bitmapSize.width + p * 2);
+            const fillColor = param.backColor || 'rgba(0,0,0,0.5)';
+            const borderColor = param.borderColor || 'rgba(0,0,255,1)';
+            const y = event.isLabelTailTop() ? param.tailHeight : 0;
+            if (b > 0) {
+                this.contents.fillRect(0, y, this.width, labelHeight, borderColor);
+                this.contents.clearRect(b, y + b, this.width - b * 2, labelHeight - b * 2);
+                this.contents.fillRect(b, y + b, this.width - b * 2, labelHeight - b * 2, fillColor);
+            } else {
+                this.contents.fillRect(0, y, this.width, labelHeight, fillColor);
+            }
+            if (event.isNeedLabelTail()) {
+                this.createLabelTail(labelHeight, fillColor, borderColor, event);
+            }
+            this.drawTextEx(text, pAndB, pAndB + y, bitmapSize.width + pAndB * 2);
             const bitmap  = this.contents;
             this.contents = null;
             this.destroy();
             return bitmap;
+        }
+
+        createLabelTail(labelHeight, fillColor, borderColor, event) {
+            const ctx = this.contents.context;
+            ctx.beginPath();
+            const halfWidth = param.tailWidth / 2;
+            const b = param.borderSize || 0;
+            const baseX = (this.width / 2 - event.findLabelX() + event.screenX()).clamp(halfWidth, this.width - halfWidth);
+            if (event.isLabelTailTop()) {
+                ctx.moveTo(baseX - halfWidth, this.height - labelHeight);
+                ctx.lineTo(baseX + halfWidth, this.height - labelHeight);
+                ctx.lineTo(baseX, 0);
+            } else {
+                ctx.moveTo(baseX - halfWidth, labelHeight);
+                ctx.lineTo(baseX + halfWidth, labelHeight);
+                ctx.lineTo(baseX, this.height);
+            }
+            ctx.closePath();
+            ctx.strokeStyle = borderColor;
+            ctx.fillStyle = fillColor;
+            ctx.lineWidth = b;
+            ctx.fill();
+            ctx.stroke();
         }
 
         resetFontSettings() {

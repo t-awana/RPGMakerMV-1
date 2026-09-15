@@ -6,6 +6,12 @@
 // http://opensource.org/licenses/mit-license.php
 // ----------------------------------------------------------------------------
 // Version
+// 1.5.3 2025/01/18 最新版のSceneCustomMenu.jsと併用できるよう修正
+// 1.5.2 2024/10/20 オプション画面にコモンイベントを設定してタイトル画面から開くとエラーになる問題を修正
+// 1.5.1 2022/10/06 メニュー画面のサブコマンドプラグインとの定義順の制約アノテーションを追加
+// 1.5.0 2022/09/17 ピクチャのボタン化プラグインで指定したコモンイベントがメニュー画面中で実行されるよう仕様変更
+// 1.4.2 2021/11/17 画面遷移時に通常イベントと同様のキャッシュ処理を追加
+// 1.4.1 2021/09/01 最新版のSceneCustomMenu.jsと併用できるよう修正
 // 1.4.0 2021/03/24 MZで実行できるよう修正
 // 1.3.7 2020/08/28 1.3.6の修正方法が間違っていた問題を修正
 // 1.3.6 2020/08/27 DWindow.jsと組み合わせたときにコモンイベントが存在するメニューで動的ウィンドウが作成されてしまう競合を修正
@@ -32,6 +38,8 @@
  * @target MZ
  * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/MenuCommonEvent.js
  * @base PluginCommonBase
+ * @orderAfter PluginCommonBase
+ * @orderBefore MenuSubCommand
  * @author トリアコンタン
  *
  * @param commonEventInfo
@@ -328,6 +336,13 @@
     Game_MenuCommonEvent.prototype             = Object.create(Game_CommonEvent.prototype);
     Game_MenuCommonEvent.prototype.constructor = Game_MenuCommonEvent;
 
+    const _Game_MenuCommonEvent_initialize = Game_MenuCommonEvent.prototype.initialize;
+    Game_MenuCommonEvent.prototype.initialize = function(commonEventId) {
+        _Game_MenuCommonEvent_initialize.apply(this, arguments);
+        this._interpreter.setup(this.list());
+        this._interpreter.loadImages();
+    };
+
     Game_MenuCommonEvent.prototype.isActive = function() {
         return true;
     };
@@ -364,11 +379,12 @@
         if (!this.hasCommonEvent()) {
             return;
         }
-        this.createSpriteset();
-        if (!this._messageWindow) {
-            this.createAllMessageWindow();
+        // Resolve conflict for SceneCustomMenu.js
+        if (this._customData) {
+            return;
         }
-        this.changeParentMessageWindow();
+        this.createSpriteset();
+        this.createAllMessageWindow();
     };
 
     Scene_MenuBase.prototype.hasCommonEvent = function() {
@@ -376,6 +392,8 @@
     };
 
     Scene_MenuBase.prototype.createAllMessageWindow = function() {
+        this._messageWindowAdd = true;
+        this.createMessageWindowLayer();
         Scene_Message.prototype.createMessageWindow.call(this);
         Scene_Message.prototype.createScrollTextWindow.call(this);
         Scene_Message.prototype.createGoldWindow.call(this);
@@ -384,6 +402,23 @@
         Scene_Message.prototype.createNumberInputWindow.call(this);
         Scene_Message.prototype.createEventItemWindow.call(this);
         Scene_Message.prototype.associateWindows.call(this);
+        this._messageWindowAdd = false;
+    };
+
+    const _Scene_MenuBase_addWindow = Scene_MenuBase.prototype.addWindow;
+    Scene_MenuBase.prototype.addWindow = function(window) {
+        if (this._messageWindowAdd) {
+            this._messageWindowLayer.addChild(window);
+        } else {
+            _Scene_MenuBase_addWindow.apply(this, arguments);
+        }
+    };
+
+    Scene_MenuBase.prototype.createMessageWindowLayer = function() {
+        this._messageWindowLayer = new WindowLayer();
+        this._messageWindowLayer.x = (Graphics.width - Graphics.boxWidth) / 2;
+        this._messageWindowLayer.y = (Graphics.height - Graphics.boxHeight) / 2;
+        this.addChild(this._messageWindowLayer);
     };
 
     Scene_MenuBase.prototype.messageWindowRect = function() {
@@ -453,6 +488,9 @@
         $gameScreen.update();
         if (param.activateTimer) {
             $gameTimer.update(true);
+        }
+        if ($gameMap._dynamicEvents) {
+            $gameMap._dynamicEvents.forEach(interpreter => interpreter.update());
         }
         this.checkGameover();
     };

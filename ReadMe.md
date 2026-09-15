@@ -1,3 +1,7 @@
+# translations
+
+- [English](https://github.com/oericdacosta/RPGMakerMV/blob/mz_master/translate/en/contribution.md)
+
 # RPGツクールMZ対応プラグイン
 
 RPGツクールMZで動作するプラグイン(JavaScript)を置いています。どうぞご自由にお使いください。  
@@ -14,7 +18,7 @@ MZプラグインは、従来のMVプラグインから派生させた『mz_mast
 <https://github.com/triacontane/RPGMakerMV/tree/mz_master>
 
 - MVプラグイン
-<https://github.com/triacontane/RPGMakerMV>
+<https://github.com/triacontane/RPGMakerMV/tree/master>
 
 『mz_master』ブランチには、機械的に@targetアノテーションを付与した仮対応プラグインと、正規に動作確認した移植済みプラグインが混在しています。
 移植済みプラグインについては以下のシートをご確認ください。

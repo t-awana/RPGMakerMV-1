@@ -6,6 +6,20 @@
  http://opensource.org/licenses/mit-license.php
 ----------------------------------------------------------------------------
  Version
+ 1.4.0 2025/03/09 マップおよびテンプレートイベントの呼び出しコマンドでラベルを指定して呼び出せる機能を追加
+ 1.3.0 2025/02/17 プラグインパラメータのマップ指定に対応
+ 1.2.3 2024/12/20 パラメータ「メモ欄統合」で「統合」を選択した場合の挙動が正常でない問題を修正
+ 1.2.2 2023/10/07 パラメータ「メモ欄統合」で「何もしない」を選択した場合、テンプレートイベントデータをセーブデータに含めないよう修正
+ 1.2.1 2023/04/26 テンプレートイベントの処理を呼び出したとき、呼び出しもとのイベントIDが保持されない問題を修正
+ 1.2.0 2023/04/23 テンプレートイベントの処理を直接呼び出せるコマンドを追加
+ 1.1.5 2022/05/25 RandomDungeon.jsとの競合対策が一部誤っていた問題を修正
+ 1.1.4 2022/01/26 ヘルプの誤記を修正
+ 1.1.3 2021/10/05 1.1.2の修正で「固有イベント呼び出し」をページ番号[0]で呼び出したときエラーになる問題を修正
+ 1.1.2 2021/10/05 「マップイベント呼び出し」でページ番号を[0]で呼び出したとき、実行中のページではなく1ページが呼ばれてしまう問題を修正
+ 1.1.1 2021/08/11 「マップイベント呼び出し」のコマンドでイベント名を指定して呼び出せるよう修正
+ 1.1.0 2021/07/23 セルフ変数のキーに文字列を指定できるよう修正
+ 1.0.7 2021/05/29 1.0.6の修正で正常に機能しなくなっていた問題を修正
+ 1.0.6 2021/05/22 RandomDungeon.jsと共存できるよう修正
  1.0.5 2021/03/15 「セルフ変数の一括設定」のコマンドが正しく設定できていなかった問題を修正
  1.0.4 2020/12/08 メモ欄の統合が正常に機能しない不具合を修正
  1.0.3 2020/11/30 英訳版ヘルプをご提供いただいて追加
@@ -30,7 +44,7 @@
  * @text Template Map ID
  * @desc Template event is a map ID where the template event exists.
  * @default 1
- * @type number
+ * @type map
  *
  * @param KeepEventId
  * @text Keep Event ID
@@ -84,9 +98,8 @@
  *
  * @arg eventId
  * @text Event ID
- * @desc The ID of the event to be called. A value of 0 will target the event being executed.
+ * @desc The ID (or Name) of the event to be called. A value of 0 will target the event being executed.
  * @default 0
- * @type number
  *
  * @command SET_SELF_VARIABLE
  * @text Self Variable Manipulation
@@ -135,7 +148,6 @@
  * @text End Index
  * @desc The end index of the self variable to be operated on.
  * @default 1
- * @type number
  *
  * @arg type
  * @text Type of Operation
@@ -300,6 +312,8 @@
 /*:ja
  * @target MZ
  * @base PluginCommonBase
+ * @orderAfter PluginCommonBase
+ * @orderAfter RandomDungeon
  * @plugindesc テンプレートイベントプラグイン
  * @author トリアコンタン
  * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/TemplateEvent.js
@@ -308,7 +322,7 @@
  * @text テンプレートマップID
  * @desc テンプレートイベントが存在するマップIDです。
  * @default 1
- * @type number
+ * @type map
  *
  * @param KeepEventId
  * @text イベントIDを維持
@@ -361,20 +375,46 @@
  * @type number
  *
  * @arg eventId
- * @text イベントID
- * @desc 呼び出すイベントのIDです。0を指定すると実行中のイベントが対象になります。
+ * @text イベントID(もしくは名称)
+ * @desc 呼び出すイベントのIDもしくはイベント名です。0を指定すると実行中のイベントが対象になります。
  * @default 0
+ *
+ * @arg label
+ * @text ラベル
+ * @desc 指定した場合、イベント呼び出し後に指定ラベルにジャンプします。
+ * @default
+ * @type string
+ *
+ * @command CALL_TEMPLATE_EVENT
+ * @text テンプレートイベント呼び出し
+ * @desc テンプレートイベントの処理を呼び出します。
+ *
+ * @arg pageIndex
+ * @text ページ番号
+ * @desc 呼び出すイベントのページ番号です。
+ * @default 1
  * @type number
+ * @min 1
+ *
+ * @arg eventId
+ * @text イベントID(もしくは名称)
+ * @desc 呼び出すイベントのIDもしくはイベント名です。0を指定すると実行中のイベントが対象になります。
+ * @default 1
+ *
+ * @arg label
+ * @text ラベル
+ * @desc 指定した場合、イベント呼び出し後に指定ラベルにジャンプします。
+ * @default
+ * @type string
  *
  * @command SET_SELF_VARIABLE
  * @text セルフ変数の操作
  * @desc セルフ変数を操作します。
  *
  * @arg index
- * @text インデックス
- * @desc 操作対象のセルフ変数のインデックスです。
+ * @text キー
+ * @desc 操作対象のセルフ変数のキーです。数値や文字列を指定できます。文字列を指定した場合、大文字小文字は区別されます。
  * @default 1
- * @type number
  *
  * @arg type
  * @text 操作種別
@@ -405,13 +445,13 @@
  *
  * @arg startIndex
  * @text 開始インデックス
- * @desc 操作対象のセルフ変数の開始インデックスです。
+ * @desc 操作対象のセルフ変数の開始インデックスです。数値のみ指定できます。
  * @default 1
  * @type number
  *
  * @arg endIndex
  * @text 終了インデックス
- * @desc 操作対象のセルフ変数の終了インデックスです。
+ * @desc 操作対象のセルフ変数の終了インデックスです。数値のみ指定できます。
  * @default 1
  * @type number
  *
@@ -498,7 +538,7 @@
  * 以下のスクリプトで指定したインデックスのセルフ変数が取得できます。
  * this.getSelfVariable(n)
  * 指定例：
- * this.getSelfVariable(1) !== 0 # セルフ変数[1]が3以上の場合
+ * this.getSelfVariable(1) !== 0 # セルフ変数[1]が0と異なる場合
  *
  * 本プラグインのすべてのプラグインコマンドで制御文字\sv[n]を使用できます。
  *
@@ -616,6 +656,291 @@
  * @default false
  */
 
+/*:zh
+ * @target MZ
+ * @base PluginCommonBase
+ * @plugindesc 模板事件插件
+ * @author triacontane
+ * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/TemplateEvent.js
+ *
+ * @param TemplateMapId
+ * @text 模板地图ID
+ * @desc 模板事件所在的地图ID。
+ * @default 1
+ * @type number
+ *
+ * @param KeepEventId
+ * @text 保持事件ID
+ * @desc 调用地图事件时，是否保持原事件的ID。改变“此事件”时的行为。
+ * @default false
+ * @type boolean
+ *
+ * @param OverrideTarget
+ * @text 覆盖目标项目
+ * @desc 当在备注中指定覆盖（优先固有事件设置而非模板事件）时，可设置要覆盖的项目。
+ * @default
+ * @type struct<override>
+ *
+ * @param AutoOverride
+ * @text 自动覆盖
+ * @desc 即使没有在备注中设置覆盖，也会应用“覆盖目标项目”的设置。
+ * @default false
+ * @type boolean
+ *
+ * @param IntegrateNote
+ * @text 备注整合
+ * @desc 将模板事件和固有事件的备注整合或覆盖。
+ * @default 0
+ * @type select
+ * @option 不进行任何操作
+ * @value 0
+ * @option 整合
+ * @value 1
+ * @option 覆盖
+ * @value 2
+ *
+ * @command CALL_ORIGIN_EVENT
+ * @text 调用原始事件
+ * @desc 调用被替换的原始事件处理。完成后返回模板事件的处理。
+ *
+ * @arg pageIndex
+ * @text 页面编号
+ * @desc 要调用的事件页面编号。指定0时，调用当前正在执行的页面。
+ * @default 0
+ * @type number
+ *
+ * @command CALL_MAP_EVENT
+ * @text 调用地图事件
+ * @desc 调用指定的地图事件处理。
+ *
+ * @arg pageIndex
+ * @text 页面编号
+ * @desc 要调用的事件页面编号。指定0时，调用当前正在执行的页面。
+ * @default 0
+ * @type number
+ *
+ * @arg eventId
+ * @text 事件ID（或名称）
+ * @desc 要调用的事件ID或事件名称。指定0时，目标为当前执行的事件。
+ * @default 0
+ *
+ * @command CALL_TEMPLATE_EVENT
+ * @text 调用模板事件
+ * @desc 调用模板事件的处理。
+ *
+ * @arg pageIndex
+ * @text 页面编号
+ * @desc 要调用的事件页面编号。
+ * @default 1
+ * @type number
+ * @min 1
+ *
+ * @arg eventId
+ * @text 事件ID（或名称）
+ * @desc 要调用的事件ID或事件名称。指定0时，目标为当前执行的事件。
+ * @default 1
+ *
+ * @command SET_SELF_VARIABLE
+ * @text 操作自变量
+ * @desc 操作事件自变量。
+ *
+ * @arg index
+ * @text 键
+ * @desc 要操作的自变量键。可指定数字或字符串。字符串区分大小写。
+ * @default 1
+ *
+ * @arg type
+ * @text 操作类型
+ * @desc 自变量的操作类型。
+ * @default 0
+ * @type select
+ * @option 0 : 赋值
+ * @value 0
+ * @option 1 : 加
+ * @value 1
+ * @option 2 : 减
+ * @value 2
+ * @option 3 : 乘
+ * @value 3
+ * @option 4 : 除
+ * @value 4
+ * @option 5 : 取余
+ * @value 5
+ *
+ * @arg operand
+ * @text 设置值
+ * @desc 要设置给自变量的值。
+ * @default 0
+ *
+ * @command SET_RANGE_SELF_VARIABLE
+ * @text 批量操作自变量
+ * @desc 批量操作事件自变量。
+ *
+ * @arg startIndex
+ * @text 起始索引
+ * @desc 要操作的自变量的起始索引（仅支持数值）。
+ * @default 1
+ * @type number
+ *
+ * @arg endIndex
+ * @text 结束索引
+ * @desc 要操作的自变量的结束索引（仅支持数值）。
+ * @default 1
+ * @type number
+ *
+ * @arg type
+ * @text 操作类型
+ * @desc 自变量的操作类型。
+ * @default 0
+ * @type select
+ * @option 0 : 赋值
+ * @value 0
+ * @option 1 : 加
+ * @value 1
+ * @option 2 : 减
+ * @value 2
+ * @option 3 : 乘
+ * @value 3
+ * @option 4 : 除
+ * @value 4
+ * @option 5 : 取余
+ * @value 5
+ *
+ * @arg operand
+ * @text 设置值
+ * @desc 要设置给自变量的值。
+ * @default 0
+ *
+ * @help TemplateEvent.js【模板事件插件】
+ *
+ * 本插件可以将通用事件模板化。
+ * 模板事件请定义在专用的“模板地图”中。
+ * 只需在实际事件的备注栏中写入特定内容，就可以动态替换为模板事件。
+ *
+ * 还可以从模板事件中调用被替换的原始事件。
+ * 例如在宝箱或传送点等仅部分逻辑不同的事件中非常实用。
+ * 将外观与共通部分写在模板事件中，
+ * 而将获取物品或传送目的地等特有部分写在原始事件中。
+ *
+ * 也可以像调用公共事件一样调用任意地图事件。
+ * 可以通过 ID 或事件名称指定调用的事件。
+ *
+ * 【使用步骤】
+ * 1. 创建模板地图，并放置模板事件。
+ * 2. 在要替换的事件备注中写入模板信息。
+ *    可以同时支持 ID 和事件名：
+ *    <TE:1>    替换为模板地图中 ID 为 [1] 的事件
+ *    <TE:aaa>  替换为模板地图中 名称为 [aaa] 的事件
+ *    <TE:\v[1]> 替换为模板地图中 ID 为变量[1]的事件
+ *
+ * 原则上，除初始位置外的所有设置都会被模板事件覆盖。
+ * 但如果在备注中写入以下内容，则固有事件的以下项目会优先生效：
+ * - 图片
+ * - 自律移动
+ * - 选项
+ * - 优先级
+ * - 触发器
+ *
+ * 固有事件备注写法：
+ * <TE上書き>
+ * <TEOverRide>
+ *
+ * 【自变量功能】
+ * 可以为事件定义“自变量”（该事件专用的变量）。
+ * 可通过插件命令操作，并可作为“显示文字”或“出现条件”使用。
+ *
+ * 显示文字中使用时：
+ * 使用控制字符“\sv[n]”来显示自变量[n]的值。
+ *
+ * 作为事件出现条件时：
+ * 将页面开头设置为“注释”并写入以下格式，可同时设置多个：
+ * \TE{条件}
+ *
+ * 条件以 JavaScript 编写，可使用控制字符。
+ * 示例：
+ * \TE{\sv[1] >= 3}      # 当自变量[1]大于等于3
+ * \TE{\sv[2] === \v[1]} # 当自变量[2]等于变量[1]
+ * \TE{\sv[3] === 'AAA'} # 当自变量[3]等于 'AAA'
+ *
+ * 在“条件分支”等脚本中使用时：
+ * this.getSelfVariable(n)
+ * 例：this.getSelfVariable(1) !== 0  # 当自变量[1]不为0
+ *
+ * 所有插件命令中均可使用 \sv[n] 控制字符。
+ *
+ * 【脚本】
+ * 在调用固有处理时，可获取模板事件的ID和名称：
+ *  this.character(0).getTemplateId();
+ *  this.character(0).getTemplateName();
+ *
+ * 获取指定索引的自变量：
+ *  this.getSelfVariable(index);
+ *
+ * 设置自变量的值（可在“设置移动路线”中执行）。
+ * 若 formulaFlg 为 true，则 operand 作为公式计算：
+ *  this.controlSelfVariable(index, type, operand, formulaFlg);
+ *
+ * 批量设置自变量（也可在“设置移动路线”中执行）：
+ *  this.controlSelfVariableRange(start, end, type, operand, formulaFlg);
+ *
+ * 操作其他事件的自变量：
+ *  $gameSelfSwitches.setVariableValue([地图ID, 事件ID, INDEX], 值);
+ *
+ * 获取其他事件的自变量：
+ *  $gameSelfSwitches.getVariableValue([地图ID, 事件ID, INDEX]);
+ *
+ * 【与 SAN_MapGenerator.js 组合使用】
+ * 请将本插件放在 SAN_MapGenerator.js 之后。
+ *
+ * 使用本插件需要基础插件“PluginCommonBase.js”。
+ * “PluginCommonBase.js”位于 RPG Maker MZ 安装目录：
+ * dlc/BasicResources/plugins/official
+ *
+ * 使用协议：
+ *  你可以自由修改或再分发本插件，无需获得作者许可。
+ *  使用形式（包括商业或成人用途）不受限制。
+ *  这个插件现在属于你了。
+ */
+
+/*~struct~override:zh
+ *
+ * @param Image
+ * @text 图像
+ * @desc 事件的图像与图像索引。
+ * @type boolean
+ * @default false
+ *
+ * @param Direction
+ * @text 朝向
+ * @desc 事件的方向与动画帧。
+ * @type boolean
+ * @default false
+ *
+ * @param Move
+ * @text 自律移动
+ * @desc 事件的自律移动设置。
+ * @type boolean
+ * @default false
+ *
+ * @param Priority
+ * @text 优先级
+ * @desc 事件的显示优先级。
+ * @type boolean
+ * @default false
+ *
+ * @param Trigger
+ * @text 触发条件
+ * @desc 事件的触发类型。
+ * @type boolean
+ * @default false
+ *
+ * @param Option
+ * @text 选项
+ * @desc 事件的各类行为选项（行走动画、穿透等）。
+ * @type boolean
+ * @default false
+ */
+
 let $dataTemplateEvents = null;
 
 (() => {
@@ -641,12 +966,28 @@ let $dataTemplateEvents = null;
     PluginManagerEx.registerCommand(script, 'CALL_MAP_EVENT', function(args) {
         const pageIndex = args.pageIndex;
         const eventId   = args.eventId;
+        if (args.label) {
+            this._callEventLabel = args.label;
+        }
         if ($gameMap.event(eventId)) {
             this.callMapEventById(pageIndex, eventId);
         } else if (eventId !== 0) {
             this.callMapEventByName(pageIndex, eventId);
         } else {
             this.callMapEventById(pageIndex, this.eventId());
+        }
+    });
+
+    PluginManagerEx.registerCommand(script, 'CALL_TEMPLATE_EVENT', function(args) {
+        const pageIndex = args.pageIndex;
+        const eventId   = args.eventId;
+        if (args.label) {
+            this._callEventLabel = args.label;
+        }
+        if ($dataTemplateEvents[eventId]) {
+            this.callTemplateEventById(pageIndex, eventId);
+        } else {
+            this.callTemplateEventByName(pageIndex, eventId);
         }
     });
 
@@ -672,7 +1013,7 @@ let $dataTemplateEvents = null;
         if (!key) {
             return text;
         }
-        text = text.replace(/\x1bSV\[(\d+)]/gi, (_, p1) => {
+        text = text.replace(/\x1bSV\[(\w+)]/gi, (_, p1) => {
             key[2] = p1;
             return $gameSelfSwitches.getVariableValue(key).toString();
         });
@@ -704,6 +1045,9 @@ let $dataTemplateEvents = null;
     Game_Interpreter.prototype.callOriginEvent = function(pageIndex) {
         const event = $gameMap.event(this._eventId);
         if (event && event.hasTemplate()) {
+            if (pageIndex === 0) {
+                pageIndex = event.getPageIndex() + 1;
+            }
             this.setupAnotherList(null, event.getOriginalPages(), pageIndex);
         }
     };
@@ -711,6 +1055,9 @@ let $dataTemplateEvents = null;
     Game_Interpreter.prototype.callMapEventById = function(pageIndex, eventId) {
         const event = $gameMap.event(eventId);
         if (event) {
+            if (pageIndex === 0) {
+                pageIndex = event.getPageIndex() + 1;
+            }
             this.setupAnotherList(param.KeepEventId ? null : eventId, event.getPages(), pageIndex);
         }
     };
@@ -718,14 +1065,32 @@ let $dataTemplateEvents = null;
     Game_Interpreter.prototype.callMapEventByName = function(pageIndex, eventName) {
         const event = searchDataItem($dataMap.events, 'name', eventName);
         if (event) {
-            this.setupAnotherList(param.KeepEventId ? null : event.id, event.pages, pageIndex);
+            this.callMapEventById(pageIndex, event.id);
         }
     };
 
+    Game_Interpreter.prototype.callTemplateEventById = function(pageIndex, eventId) {
+        const event = $dataTemplateEvents[eventId];
+        if (event) {
+            this.setupAnotherList(null, event.pages, pageIndex);
+        }
+    };
+
+    Game_Interpreter.prototype.callTemplateEventByName = function(pageIndex, eventName) {
+        const event = searchDataItem($dataTemplateEvents, 'name', eventName);
+        if (event) {
+            this.callTemplateEventById(pageIndex, event.id);
+        }
+    }
+
     Game_Interpreter.prototype.setupAnotherList = function(eventId, pages, pageIndex) {
-        const page = pages[pageIndex - 1 || this._pageIndex] || pages[0];
+        const page = pages[pageIndex - 1];
+        if (!page) {
+            return;
+        }
         if (!eventId) eventId = this.isOnCurrentMap() ? this._eventId : 0;
         this.setupChild(page.list, eventId);
+        this.setupChildLabel();
     };
 
     Game_Interpreter.prototype.controlSelfVariable = function(index, type, operand, formulaFlg) {
@@ -745,6 +1110,13 @@ let $dataTemplateEvents = null;
     Game_Interpreter.prototype.getSelfVariable = function(selfVariableIndex) {
         const character = this.character(0);
         return character ? character.getSelfVariable(selfVariableIndex) : 0;
+    };
+
+    Game_Interpreter.prototype.setupChildLabel = function() {
+        if (this._callEventLabel) {
+            this._childInterpreter.command119([this._callEventLabel]);
+            this._callEventLabel = null;
+        }
     };
 
     //=============================================================================
@@ -815,19 +1187,32 @@ let $dataTemplateEvents = null;
         return eventId > 0 ? [$gameMap.mapId(), eventId, index] : null;
     };
 
+    const _Game_Map_setup = Game_Map.prototype.setup;
+    Game_Map.prototype.setup = function(mapId) {
+        this.initDynamicEvents();
+        _Game_Map_setup.apply(this, arguments);
+    };
+
     //=============================================================================
     // Game_Event
     //  テンプレートイベントマップをロードしてグローバル変数に保持します。
     //=============================================================================
     const _Game_Event_initialize    = Game_Event.prototype.initialize;
     Game_Event.prototype.initialize = function(mapId, eventId) {
-        const event = $dataMap.events[eventId];
+        if (arguments.length > 2) {
+            this._eventByRandomDungeon = arguments[2];
+        }
+        const event = this.getDataEvent(eventId);
         this.setTemplate(event);
         _Game_Event_initialize.apply(this, arguments);
         if (this.hasTemplate()) {
             this.setPosition(event.x, event.y);
             this.refreshBushDepth();
         }
+    };
+
+    Game_Event.prototype.getDataEvent = function(eventId) {
+        return this._eventByRandomDungeon || $dataMap.events[eventId];
     };
 
     const _Game_Event_setupPageSettings    = Game_Event.prototype.setupPageSettings;
@@ -892,22 +1277,17 @@ let $dataTemplateEvents = null;
     };
 
     Game_Event.prototype.setTemplate = function(event) {
-        const templateId    = this.generateTemplateId(event);
-        const templateEvent = $dataTemplateEvents[templateId];
-        if (templateEvent) {
-            this._templateId    = templateId;
-            this._templateEvent = templateEvent;
+        this._templateId    = this.generateTemplateId(event);
+        if (this.hasTemplate()) {
             this._override      = param.AutoOverride || !!PluginManagerEx.findMetaValue(event, ['TEOverRide', 'TE上書き']);
-            const type = parseInt(param.IntegrateNote);
-            if (type > 0) {
-                this.integrateNote(event, type);
+            if (parseInt(param.IntegrateNote) > 0) {
+                this.integrateNote(event);
             }
         } else {
-            if (templateId) {
-                console.error(`Invalid templateId : ${templateId}`);
+            if (this._templateId) {
+                console.error(`Invalid templateId : ${this._templateId}`);
             }
             this._templateId    = 0;
-            this._templateEvent = null;
             this._override      = false;
         }
     };
@@ -924,33 +1304,36 @@ let $dataTemplateEvents = null;
         return templateId;
     };
 
-    Game_Event.prototype.integrateNote = function(event, type) {
-        this._templateEvent      = JsonEx.makeDeepCopy(this._templateEvent);
-        this._templateEvent.note = (type === 1 ? this._templateEvent.note : '') + event.note;
+    Game_Event.prototype.integrateNote = function(event) {
+        this._templateEvent      = JsonEx.makeDeepCopy(this.templateEvent());
+        this._templateEvent.note = (parseInt(param.IntegrateNote) === 1 ? this._templateEvent.note : '') + event.note;
         DataManager.extractMetadata(this._templateEvent);
     };
 
-    Game_Event._userScripts            = ['getTemplateId', 'getTemplateName'];
     Game_Event.prototype.getTemplateId = function() {
         return this._templateId;
     };
 
     Game_Event.prototype.getTemplateName = function() {
-        return this.hasTemplate() ? this._templateEvent.name : '';
+        return this.hasTemplate() ? this.templateEvent().name : '';
     };
 
     Game_Event.prototype.hasTemplate = function() {
-        return this._templateId > 0;
+        return !!this.templateEvent();
     };
 
     const _Game_Event_event    = Game_Event.prototype.event;
     Game_Event.prototype.event = function() {
-        return this.hasTemplate() ? this._templateEvent : _Game_Event_event.apply(this, arguments);
+        return this.hasTemplate() ? this.templateEvent() : _Game_Event_event.apply(this, arguments);
+    };
+
+    Game_Event.prototype.templateEvent = function() {
+        return this._templateEvent || $dataTemplateEvents[this._templateId];
     };
 
     Game_Event.prototype.getOriginalPages = function() {
         const eventId = PluginManagerEx.isExistPlugin('SAN_MapGenerator') ? this._dataEventId : this._eventId;
-        return $dataMap.events[eventId].pages;
+        return this.getDataEvent(eventId).pages;
     };
 
     Game_Event.prototype.getOriginalPage = function() {
@@ -959,6 +1342,10 @@ let $dataTemplateEvents = null;
 
     Game_Event.prototype.getPages = function() {
         return this.event().pages;
+    };
+
+    Game_Event.prototype.getPageIndex = function() {
+        return this._pageIndex;
     };
 
     const _Game_Event_meetsConditions    = Game_Event.prototype.meetsConditions;

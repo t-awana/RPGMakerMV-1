@@ -6,6 +6,11 @@
 // http://opensource.org/licenses/mit-license.php
 // ----------------------------------------------------------------------------
 // Version
+// 3.4.0 2025/02/01 項目の隠しフラグをプラグインコマンドから再設定できる機能を追加
+// 3.3.0 2024/03/30 追加項目同士の並び順を変更できる機能を追加
+// 3.2.0 2021/12/21 項目に余白を設定できる機能を追加
+// 3.1.3 2021/08/09 セーブデータをロードした際に、追加オプションの設定値がゲーム変数に反映されない問題を修正
+// 3.1.2 2021/08/05 セーブがある状態で隠し項目を追加した時に上手く動作しない問題を修正
 // 3.1.1 2020/10/13 Mano_InputConfig.jsと併用したとき、項目を末尾以外に追加すると表示不整合が発生する競合を修正
 // 3.1.0 2020/08/20 スイッチ項目でONとOFFの表示文字列を変更できる機能を追加
 // 3.0.0 2020/08/20 MZで動作するよう全面的に修正
@@ -57,9 +62,32 @@
  * @default
  * @type struct<VolumeData>[]
  *
+ * @param CustomOrder
+ * @text 追加項目の並び順
+ * @desc 同じ追加位置を指定した項目同士の並び順をデフォルトから変更したい場合に設定してください。
+ * @default ["NumberOptions","StringOptions","SwitchOptions","VolumeOptions"]
+ * @type select[]
+ * @option 数値項目
+ * @value NumberOptions
+ * @option 文字列項目
+ * @value StringOptions
+ * @option スイッチ項目
+ * @value SwitchOptions
+ * @option 音量項目
+ * @value VolumeOptions
+ *
  * @command UNLOCK
- * @text オプション任意項目の隠し解除
+ * @text 項目の隠し解除
  * @desc 指定した項目の隠しフラグを解除します。
+ *
+ * @arg name
+ * @text 項目名
+ * @desc 対象の項目名称です。
+ * @default
+ *
+ * @command LOCK
+ * @text 項目の隠し再設定
+ * @desc 指定した項目の隠しフラグを再設定します。
  *
  * @arg name
  * @text 項目名
@@ -97,14 +125,8 @@
  * 選択した文字のインデックス(開始位置は0)が変数に設定されます。
  * 初期値に設定する値もインデックスです。
  *
- * プラグインコマンド詳細
- *  イベントコマンド「プラグインコマンド」から実行。
- *  （パラメータの間は半角スペースで区切る）
- *
- *  CC_UNLOCK or
- *  オプション任意項目の隠し解除 [項目名]
- *  　指定した項目の隠しフラグを解除します。
- *  使用例：CC_UNLOCK 数値項目1
+ * 項目には余白を設定できますが、設定した場合は
+ * オプションウィンドウのスクロールが無効になります。
  *
  * 利用規約：
  *  作者に無断で改変、再配布が可能で、利用形態（商用、18禁利用等）
@@ -180,6 +202,12 @@
  * @value meVolume
  * @option SE 音量
  * @value seVolume
+ *
+ * @param PaddingTop
+ * @text 余白
+ * @desc 項目の上の余白ピクセル数です。項目の間隔を開けたいときに指定します。
+ * @default 0
+ * @type number
  */
 /*~struct~BooleanData:
  * @param Name
@@ -241,6 +269,12 @@
  * @value meVolume
  * @option SE 音量
  * @value seVolume
+ *
+ * @param PaddingTop
+ * @text 余白
+ * @desc 項目の上の余白ピクセル数です。項目の間隔を開けたいときに指定します。
+ * @default 0
+ * @type number
  */
 /*~struct~StringData:
  * @param Name
@@ -298,6 +332,12 @@
  * @value meVolume
  * @option SE 音量
  * @value seVolume
+ *
+ * @param PaddingTop
+ * @text 余白
+ * @desc 項目の上の余白ピクセル数です。項目の間隔を開けたいときに指定します。
+ * @default 0
+ * @type number
  */
 /*~struct~VolumeData:
  * @param Name
@@ -349,6 +389,12 @@
  * @value meVolume
  * @option SE 音量
  * @value seVolume
+ *
+ * @param PaddingTop
+ * @text 余白
+ * @desc 項目の上の余白ピクセル数です。項目の間隔を開けたいときに指定します。
+ * @default 0
+ * @type number
  */
 
 (function() {
@@ -356,7 +402,11 @@
     var script = document.currentScript;
 
     PluginManagerEx.registerCommand(script, 'UNLOCK', function(args) {
-        ConfigManager.customParamUnlock(args.name);
+        ConfigManager.customParamUnlock(args.name, false);
+    });
+
+    PluginManagerEx.registerCommand(script, 'LOCK', function(args) {
+        ConfigManager.customParamUnlock(args.name, true);
     });
 
     var iterate = function(that, handler) {
@@ -381,6 +431,9 @@
     if (!param.VolumeOptions) {
         param.VolumeOptions = [];
     }
+    if (!param.CustomOrder) {
+        param.CustomOrder = ['NumberOptions', 'StringOptions', 'SwitchOptions', 'VolumeOptions'];
+    }
 
     var localOptionWindowIndex = 0;
 
@@ -400,22 +453,15 @@
             return this.customParams;
         }
         this.customParams = {};
-        param.NumberOptions.forEach(function(optionItem, index) {
-            this.makeNumberOption(optionItem, index);
-        }, this);
-        param.StringOptions.forEach(function(optionItem, index) {
-            this.makeStringOption(optionItem, index);
-        }, this);
-        param.SwitchOptions.forEach(function(optionItem, index) {
-            this.makeSwitchOption(optionItem, index);
-        }, this);
-        param.VolumeOptions.forEach(function(optionItem, index) {
-            this.makeVolumeOption(optionItem, index);
-        }, this);
+        param.CustomOrder.forEach(orderName => {
+            param[orderName].forEach((optionItem, index) => {
+                this[`make${orderName}`](optionItem, index);
+            });
+        });
         return this.customParams;
     };
 
-    ConfigManager.makeNumberOption = function(optionItem, index) {
+    ConfigManager.makeNumberOptions = function(optionItem, index) {
         var data    = this.makeCommonOption(optionItem, index, this._symbolNumber);
         data.min    = optionItem.NumberMin;
         data.max    = optionItem.NumberMax;
@@ -423,7 +469,7 @@
         this.pushOptionData(data);
     };
 
-    ConfigManager.makeStringOption = function(optionItem, index) {
+    ConfigManager.makeStringOptions = function(optionItem, index) {
         var data    = this.makeCommonOption(optionItem, index, this._symbolString);
         data.values = optionItem.StringItems || ['no item'];
         data.min    = 0;
@@ -431,7 +477,7 @@
         this.pushOptionData(data);
     };
 
-    ConfigManager.makeSwitchOption = function(optionItem, index) {
+    ConfigManager.makeSwitchOptions = function(optionItem, index) {
         var data       = this.makeCommonOption(optionItem, index, this._symbolBoolean);
         data.variable  = optionItem.SwitchID;
         data.onText    = optionItem.OnText;
@@ -439,7 +485,7 @@
         this.pushOptionData(data);
     };
 
-    ConfigManager.makeVolumeOption = function(optionItem, index) {
+    ConfigManager.makeVolumeOptions = function(optionItem, index) {
         var data = this.makeCommonOption(optionItem, index, this._symbolVolume);
         this.pushOptionData(data);
     };
@@ -453,6 +499,7 @@
         data.initValue = optionItem.DefaultValue;
         data.variable  = optionItem.VariableID || 0;
         data.addPotion = optionItem.AddPosition;
+        data.padding   = optionItem.PaddingTop;
         return data;
     };
 
@@ -488,13 +535,17 @@
             } else {
                 this[symbol] = this.readOther(config, symbol, item);
             }
-            this.hiddenInfo[symbol] = (config.hiddenInfo ? config.hiddenInfo[symbol] : item.hidden);
+            if (config.hiddenInfo && config.hiddenInfo.hasOwnProperty(symbol)) {
+                this.hiddenInfo[symbol] = config.hiddenInfo[symbol];
+            } else {
+                this.hiddenInfo[symbol] = item.hidden;
+            }
         }.bind(this));
     };
 
-    ConfigManager.customParamUnlock = function(name) {
+    ConfigManager.customParamUnlock = function(name, lock) {
         iterate(this.getCustomParams(), function(symbol, item) {
-            if (item.name === name) this.hiddenInfo[symbol] = false;
+            if (item.name === name) this.hiddenInfo[symbol] = lock;
         }.bind(this));
         this.save();
     };
@@ -578,18 +629,42 @@
         ConfigManager.exportCustomParams();
     };
 
-    var _DataManager_loadGameWithoutRescue = DataManager.loadGameWithoutRescue;
-    DataManager.loadGameWithoutRescue      = function(savefileId) {
-        var result = _DataManager_loadGameWithoutRescue.apply(this, arguments);
+    var _DataManager_extractSaveContents = DataManager.extractSaveContents;
+    DataManager.extractSaveContents = function(contents) {
+        _DataManager_extractSaveContents.apply(this, arguments);
         ConfigManager.exportCustomParams();
-        return result;
     };
 
     var _Scene_Options_maxCommands = Scene_Options.prototype.maxCommands;
     Scene_Options.prototype.maxCommands = function() {
-        return _Scene_Options_maxCommands.apply(this, arguments) +
-            param.NumberOptions.length + param.StringOptions.length +
-            param.SwitchOptions.length + param.VolumeOptions.length;
+        var count =  _Scene_Options_maxCommands.apply(this, arguments);
+        var params = ConfigManager.getCustomParams();
+        return count + Object.keys(params).reduce(function (prev, key) {
+            return ConfigManager.hiddenInfo[key] ? prev : prev + 1;
+        }, 0);
+    };
+
+    var _Scene_Options_maxVisibleCommands = Scene_Options.prototype.maxVisibleCommands;
+    Scene_Options.prototype.maxVisibleCommands = function() {
+        var result = _Scene_Options_maxVisibleCommands.apply(this, arguments);
+        return this.findPaddingHeight() > 0 ? Infinity : result;
+    };
+
+    var _Scene_Options_optionsWindowRect = Scene_Options.prototype.optionsWindowRect;
+    Scene_Options.prototype.optionsWindowRect = function() {
+        var rect = _Scene_Options_optionsWindowRect.apply(this, arguments);
+        rect.height += this.findPaddingHeight();
+        return rect;
+    };
+
+    Scene_Options.prototype.findPaddingHeight = function() {
+        var params = ConfigManager.getCustomParams();
+        return Object.keys(params).reduce(function (prev, key) {
+            if (ConfigManager.hiddenInfo[key]) {
+                return prev;
+            }
+            return prev + (params[key].padding || 0);
+        }, 0);
     };
 
     //=============================================================================
@@ -604,6 +679,19 @@
         localOptionWindowIndex = 0;
     };
 
+    var _Window_Options_itemRect = Window_Options.prototype.itemRect;
+    Window_Options.prototype.itemRect = function(index) {
+        var rect = _Window_Options_itemRect.apply(this, arguments);
+        rect.y += this.findPaddingHeight(index);
+        return rect;
+    };
+
+    Window_Options.prototype.findPaddingHeight = function(index) {
+        return this._list.reduce(function(prev, item, itemIndex) {
+            return prev + (itemIndex <= index && item.ext ? item.ext : 0);
+        }, 0);
+    };
+
     var _Window_Options_makeCommandList      = Window_Options.prototype.makeCommandList;
     Window_Options.prototype.makeCommandList = function() {
         _Window_Options_makeCommandList.apply(this, arguments);
@@ -613,7 +701,7 @@
     Window_Options.prototype.addCustomOptions = function() {
         iterate(this._customParams, function(key, item) {
             if (!ConfigManager.hiddenInfo[key]) {
-                this.addCommand(item.name, key);
+                this.addCommand(item.name, key, undefined, item.padding);
                 if (item.addPotion) {
                     this.shiftCustomOptions(item.addPotion);
                 }
@@ -746,10 +834,6 @@
         var value = this._customParams[symbol].offset;
         if (Input.isPressed('shift')) value *= 10;
         return value;
-    };
-
-    Window_Options.prototype.windowHeight = function() {
-        return this.fittingHeight(Math.min(this.numVisibleRows(), 14));
     };
 })();
 

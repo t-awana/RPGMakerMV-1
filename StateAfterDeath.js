@@ -6,6 +6,10 @@
  http://opensource.org/licenses/mit-license.php
 ----------------------------------------------------------------------------
  Version
+ 1.3.0 2022/05/10 全回復実行時もステートが解除されない設定を追加
+ 1.2.1 2021/09/16 戦闘不能後継続ステートをすでに戦闘不能のバトラーに付与したときにも付与できるよう修正
+ 1.2.0 2021/08/25 対象ステートを範囲指定できるパラメータを追加
+ 1.1.0 2021/05/28 MZ用にリファクタリング
  1.0.1 2018/08/12 継続ステートが戦闘不能後にターン数で解除されなくなっていた問題を修正
  1.0.0 2018/08/12 初版
 ----------------------------------------------------------------------------
@@ -16,12 +20,34 @@
 
 /*:
  * @plugindesc StateAfterDeathPlugin
- * @target MZ @url https://github.com/triacontane/RPGMakerMV/tree/mz_master @author triacontane
+ * @target MZ 
+ * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/StateAfterDeath.js
+ * @base PluginCommonBase
+ * @orderAfter PluginCommonBase
+ * @author triacontane
  *
  * @param states
  * @desc 戦闘不能後も継続するステートの配列の一覧です。
  * @type state[]
  * @default []
+ *
+ * @param stateIdStart
+ * @text 対象ステート(範囲設定開始)
+ * @desc 戦闘不能後も継続するステートを範囲指定したい場合の開始IDです。
+ * @type state
+ * @default 0
+ *
+ * @param stateIdEnd
+ * @text 対象ステート(範囲設定終了)
+ * @desc 戦闘不能後も継続するステートを範囲指定したい場合の終了IDです。
+ * @type state
+ * @default 0
+ *
+ * @param considerRecoverAll
+ * @text 全回復を考慮
+ * @desc 戦闘不能だけでなく全回復をした場合もステートが解除されず、永続的に付与されるようになります。
+ * @type boolean
+ * @default false
  *
  * @help StateAfterDeath.js
  *
@@ -34,13 +60,35 @@
  */
 /*:ja
  * @plugindesc 戦闘不能後継続ステートプラグイン
- * @target MZ @url https://github.com/triacontane/RPGMakerMV/tree/mz_master @author トリアコンタン
+ * @target MZ 
+ * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/StateAfterDeath.js
+ * @base PluginCommonBase
+ * @orderAfter PluginCommonBase
+ * @author トリアコンタン
  *
  * @param states
  * @text 対象ステート
  * @desc 戦闘不能後も継続するステートの配列の一覧です。
  * @type state[]
  * @default []
+ *
+ * @param stateIdStart
+ * @text 対象ステート(範囲設定開始)
+ * @desc 戦闘不能後も継続するステートを範囲指定したい場合の開始IDです。
+ * @type state
+ * @default 0
+ *
+ * @param stateIdEnd
+ * @text 対象ステート(範囲設定終了)
+ * @desc 戦闘不能後も継続するステートを範囲指定したい場合の終了IDです。
+ * @type state
+ * @default 0
+ *
+ * @param considerRecoverAll
+ * @text 全回復を考慮
+ * @desc 戦闘不能だけでなく全回復をした場合もステートが解除されず、永続的に付与されるようになります。
+ * @type boolean
+ * @default false
  *
  * @help StateAfterDeath.js
  *
@@ -55,49 +103,54 @@
  *  このプラグインはもうあなたのものです。
  */
 
-(function() {
+(()=> {
     'use strict';
-
-    /**
-     * Create plugin parameter. param[paramName] ex. param.commandPrefix
-     * @param pluginName plugin name(EncounterSwitchConditions)
-     * @returns {Object} Created parameter
-     */
-    var createPluginParameter = function(pluginName) {
-        var paramReplacer = function(key, value) {
-            if (value === 'null') {
-                return value;
-            }
-            if (value[0] === '"' && value[value.length - 1] === '"') {
-                return value;
-            }
-            try {
-                return JSON.parse(value);
-            } catch (e) {
-                return value;
-            }
-        };
-        var parameter     = JSON.parse(JSON.stringify(PluginManager.parameters(pluginName), paramReplacer));
-        PluginManager.setParameters(pluginName, parameter);
-        return parameter;
-    };
-
-    var param = createPluginParameter('StateAfterDeath');
+    const script = document.currentScript;
+    const param = PluginManagerEx.createParameter(script);
     if (!param.states) {
         param.states = [];
     }
 
-    var _Game_BattlerBase_die      = Game_BattlerBase.prototype.die;
-    Game_BattlerBase.prototype.die = function() {
-        var stillStates     = this._states.filter(function(stateId) {
-            return param.states.contains(stateId);
-        });
-        var stillStateTurns = {};
-        stillStates.forEach(function(stateId) {
-            stillStateTurns[stateId] = this._stateTurns[stateId];
-        }, this);
-        _Game_BattlerBase_die.apply(this, arguments);
+    const _Game_BattlerBase_clearStates      = Game_BattlerBase.prototype.clearStates;
+    Game_BattlerBase.prototype.clearStates = function() {
+        if (!this._states) {
+            _Game_BattlerBase_clearStates.apply(this, arguments);
+            return;
+        }
+        const deathStates = this.findStateAfterDeath();
+        const stillStates = this._states.filter(stateId => deathStates.includes(stateId));
+        const stillStateTurns = {};
+        stillStates.forEach(stateId => stillStateTurns[stateId] = this._stateTurns[stateId]);
+        _Game_BattlerBase_clearStates.apply(this, arguments);
+        if (!param.considerRecoverAll && this.hp > 0) {
+            return;
+        }
         this._states     = this._states.concat(stillStates);
         this._stateTurns = stillStateTurns;
+    };
+
+    Game_BattlerBase.prototype.findStateAfterDeath = function() {
+        const deathStates = param.states.clone();
+        for (let id = param.stateIdStart; id <= param.stateIdEnd; id++) {
+            deathStates.push(id);
+        }
+        return deathStates;
+    };
+
+    const _Game_BattlerBase_isAlive = Game_BattlerBase.prototype.isAlive;
+    Game_BattlerBase.prototype.isAlive = function() {
+        const result = _Game_BattlerBase_isAlive.apply(this, arguments);
+        return this._ignoreDeath ? true : result;
+    };
+
+    const _Game_Battler_isStateAddable = Game_Battler.prototype.isStateAddable;
+    Game_Battler.prototype.isStateAddable = function(stateId) {
+        const deathStates = this.findStateAfterDeath();
+        if (deathStates.includes(stateId)) {
+            this._ignoreDeath = true;
+        }
+        const result = _Game_Battler_isStateAddable.apply(this, arguments);
+        this._ignoreDeath = false;
+        return result;
     };
 })();

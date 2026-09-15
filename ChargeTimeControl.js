@@ -6,6 +6,8 @@
  http://opensource.org/licenses/mit-license.php
 ----------------------------------------------------------------------------
  Version
+ 1.2.2 2021/05/28 チャージタイム増減以外の効果がないときに「効かなかった」と表示されないよう修正
+ 1.2.1 2021/05/28 チャージタイムの増加によってゲージが満タンになったとき行動選択時にエラーになる場合がある問題を修正
  1.2.0 2021/03/02 チャージタイムの有効率を増加、減少それぞれで指定できる機能を追加
  1.1.0 2021/02/06 チャージタイムの増減に計算式を指定できる機能を追加
  1.0.0 2020/08/21 初版
@@ -168,7 +170,8 @@
     Game_Action.prototype.applyChangeChargeTime = function(target) {
         const chargeTime = PluginManagerEx.findMetaValue(this.item(), 'ChargeTime');
         if (chargeTime) {
-            target.changeTpbChargeTime(chargeTime)
+            target.changeTpbChargeTime(chargeTime);
+            this.makeSuccess(target);
         }
         this.applyChangeChargeTimeJs(target);
     };
@@ -181,6 +184,7 @@
                 const b = target;
                 const value = eval(chargeTimeJs);
                 target.changeTpbChargeTime(value);
+                this.makeSuccess(target);
             } catch (e) {
                 PluginManagerEx.throwError( `<ChargeTimeJs:${chargeTimeJs}> ${e.message}`, script);
             }
@@ -193,9 +197,6 @@
         }
         this._tpbChargeTime += value / 100 * this.findChargeTimeRate(value);
         this._tpbChargeTime = this._tpbChargeTime.clamp(0, 1);
-        if (this._tpbChargeTime >= 1) {
-            this.onTpbCharged();
-        }
     };
 
     Game_Battler.prototype.findChargeTimeRate = function(value) {

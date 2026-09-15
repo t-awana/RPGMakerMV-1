@@ -6,6 +6,9 @@
  http://opensource.org/licenses/mit-license.php
 ----------------------------------------------------------------------------
  Version
+ 1.1.2 2024/05/06 非表示スロットがステータス画面でも非表示になるよう修正
+ 1.1.1 2023/10/26 装備スロット選択時、選択中のヘルプが表示されなくなっていた問題を修正
+ 1.1.0 2022/08/31 MZ向けにリファクタリング
  1.0.1 2019/11/30 1.0.0の考慮漏れがあったので実装方法を全体的に変更
  1.0.0 2019/11/24 初版
 ----------------------------------------------------------------------------
@@ -15,18 +18,10 @@
 =============================================================================*/
 
 /*:
- * @plugindesc InvalidSlotHiddenPlugin
- * @target MZ @url https://github.com/triacontane/RPGMakerMV/tree/mz_master @author triacontane
- *
- * @help InvalidSlotHidden.js
- *
- * 特徴によって封印された装備スロットを非表示にします。
- *
- * This plugin is released under the MIT License.
- */
-/*:ja
  * @plugindesc 封印装備スロットの非表示プラグイン
- * @target MZ @url https://github.com/triacontane/RPGMakerMV/tree/mz_master @author トリアコンタン
+ * @target MZ
+ * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/InvalidSlotHidden.js
+ * @author トリアコンタン
  *
  * @help InvalidSlotHidden.js
  *
@@ -40,7 +35,7 @@
  *  このプラグインはもうあなたのものです。
  */
 
-(function() {
+(()=> {
     'use strict';
 
     /**
@@ -48,11 +43,9 @@
      * 有効なスロットIDのリストを返します。
      */
     Game_Actor.prototype.validEquipIndexList = function() {
-        return this.equipSlots().map(function(slotItem, index) {
-            return this.isValidSlot(slotItem) ? index : null;
-        }, this).filter(function(item) {
-            return item !== null;
-        });
+        return this.equipSlots()
+            .map((slotItem, index) => this.isValidSlot(slotItem) ? index : null)
+            .filter(item => item !== null);
     };
 
     Game_Actor.prototype.isValidSlot = function(slot) {
@@ -63,9 +56,9 @@
      * Window_EquipSlot
      * 無効なスロットを非表示にします。
      */
-    var _Window_EquipSlot_index = Window_EquipSlot.prototype.index;
+    const _Window_EquipSlot_index = Window_EquipSlot.prototype.index;
     Window_EquipSlot.prototype.index = function() {
-        var index = _Window_EquipSlot_index.apply(this, arguments);
+        const index = _Window_EquipSlot_index.apply(this, arguments);
         if (this._needRealIndex) {
             return this.convertEquipIndex(index);
         } else {
@@ -75,17 +68,18 @@
 
     Window_EquipSlot.prototype.callProcessNeedRealIndex = function(process) {
         this._needRealIndex = true;
-        process();
+        const result = process();
         this._needRealIndex = false;
+        return result;
     };
 
-    var _Window_EquipSlot_reselect = Window_EquipSlot.prototype.reselect;
+    const _Window_EquipSlot_reselect = Window_EquipSlot.prototype.reselect;
     Window_EquipSlot.prototype.reselect = function() {
         this._needRealIndex = false;
         _Window_EquipSlot_reselect.apply(this, arguments);
     };
 
-    var _Window_EquipSlot_update = Window_EquipSlot.prototype.update;
+    const _Window_EquipSlot_update = Window_EquipSlot.prototype.update;
     Window_EquipSlot.prototype.update = function() {
         _Window_EquipSlot_update.apply(this, arguments);
         if (this._itemWindow) {
@@ -93,9 +87,9 @@
         }
     };
 
-    var _Window_EquipSlot_item = Window_EquipSlot.prototype.item;
+    const _Window_EquipSlot_item = Window_EquipSlot.prototype.item;
     Window_EquipSlot.prototype.item = function() {
-        this.callProcessNeedRealIndex(_Window_EquipSlot_item.bind(this));
+        return this.callProcessNeedRealIndex(_Window_EquipSlot_item.bind(this));
     };
 
     Window_EquipSlot.prototype.maxItems = function() {
@@ -104,7 +98,7 @@
 
     Window_EquipSlot.prototype.drawItem = function(index) {
         if (this._actor) {
-            var rect = this.itemRectForText(index);
+            const rect = this.itemLineRect(index);
             this.changeTextColor(this.systemColor());
             this.changePaintOpacity(this.isEnabled(index));
             this.drawText(this.slotName(index), rect.x, rect.y, 138, this.lineHeight());
@@ -121,25 +115,41 @@
         if (!this._actor) {
             return '';
         }
-        var realIndex = this.convertEquipIndex(index);
-        var slots = this._actor.equipSlots();
+        const realIndex = this.convertEquipIndex(index);
+        const slots = this._actor.equipSlots();
         return $dataSystem.equipTypes[slots[realIndex]];
     };
 
-    var _Window_EquipSlot_isEnabled = Window_EquipSlot.prototype.isEnabled;
+    const _Window_EquipSlot_isEnabled = Window_EquipSlot.prototype.isEnabled;
     Window_EquipSlot.prototype.isEnabled = function(index) {
         if (!this._actor) {
             return false;
         }
-        var realIndex = this.convertEquipIndex(index);
+        const realIndex = this.convertEquipIndex(index);
         return _Window_EquipSlot_isEnabled.call(this, realIndex);
     };
 
     /**
      * 装備変更時の対象スロットで非表示スロットを考慮します。
      */
-    var _Scene_Equip_onItemOk = Scene_Equip.prototype.onItemOk;
+    const _Scene_Equip_onItemOk = Scene_Equip.prototype.onItemOk;
     Scene_Equip.prototype.onItemOk = function() {
         this._slotWindow.callProcessNeedRealIndex(_Scene_Equip_onItemOk.bind(this));
+    };
+
+    Window_StatusEquip.prototype.maxItems = function() {
+        return this._actor ? this._actor.validEquipIndexList().length : 0;
+    };
+
+    Window_StatusEquip.prototype.drawItem = function(index) {
+        const rect = this.itemLineRect(index);
+        index = this._actor.validEquipIndexList()[index];
+        const equips = this._actor.equips();
+        const item = equips[index];
+        const slotName = this.actorSlotName(this._actor, index);
+        const sw = 138;
+        this.changeTextColor(ColorManager.systemColor());
+        this.drawText(slotName, rect.x, rect.y, sw, rect.height);
+        this.drawItemName(item, rect.x + sw, rect.y, rect.width - sw);
     };
 })();

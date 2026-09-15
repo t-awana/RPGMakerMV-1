@@ -6,6 +6,10 @@
 // http://opensource.org/licenses/mit-license.php
 // ----------------------------------------------------------------------------
 // Version
+// 1.1.5 2026/09/02 SE演奏時フェードアウトのフェード時間設定が反映されない不具合を修正
+// 1.1.4 2026/07/27 SE演奏時フェードアウトの説明文を、同時または演奏後に開始したBGSは対象外である仕様に合わせて修正
+// 1.1.3 2025/10/19 BGSの演奏が始まっていない状態ではSE演奏時フェードアウトが行われない仕様に変更
+// 1.1.2 2025/06/22 SE演奏中のBGSフェードアウト機能で、SEの演奏が終わる前にBGSがフェードインする場合がある問題を修正
 // 1.1.1 2021/03/06 BGMのフェードアウトのイベントコマンドでは現在のラインのBGSのみフェードアウトするよう修正
 // 1.1.0 2020/12/14 MZ向けに全面的に修正
 // 1.0.3 2020/02/02 ヘルプのプラグインコマンド「PB_BGSライン変更」が間違っていたので「PB_BGS_ライン変更」に修正(コード修正なし)
@@ -41,7 +45,7 @@
  * 
  * @command FADEOUT_FOR_SE
  * @text SE演奏時フェードアウト
- * @desc SEが演奏されたタイミングでBGSを自動フェードアウトします。
+ * @desc SEが演奏されたタイミングでBGSを自動フェードアウトします。SE演奏と同時もしくは演奏後に開始したBGSはフェードしません。
  * 
  * @arg type
  * @text フェードアウト種別
@@ -135,7 +139,7 @@
     Game_System.prototype.setBgsFadeForSe = function(se, time) {
         this._bgsFadeForPlayingSe = se;
         this._bgsFadeTime = time;
-        AudioManager.setBgsFadeForSe(se);
+        AudioManager.setBgsFadeForSe(se, time / 60);
     };
 
     Game_System.prototype.getBgsFadeTime = function() {
@@ -212,12 +216,9 @@
         this._bgsLineIndex = index;
     };
 
-    AudioManager.setBgsFadeForSe = function(value) {
+    AudioManager.setBgsFadeForSe = function(value, time) {
         this._bgsFadeForSe = value;
-    };
-
-    AudioManager.setBgsFadeTime = function(value) {
-        this._bgsFadeTime = value;
+        this._bgsFadeTime = time;
     };
 
     const _AudioManager_playBgs = AudioManager.playBgs;
@@ -348,7 +349,7 @@
     };
 
     AudioManager.isNeedFadeOut = function() {
-        return !this._bgsFading && this._bgsFadeForSe !== 0;
+        return !this._bgsFading && this._bgsFadeForSe !== 0 && this._bgsBuffer?._gainNode;
     };
 
     AudioManager.fadeInBgsForSe = function() {
@@ -358,7 +359,7 @@
     };
 
     AudioManager.isNeedFadeIn = function() {
-        return this._bgsFading && !this.isPlayingAnySe() && this._bgsFadeCounter === 0;
+        return this._bgsFading && !this.isPlayingAnySe() && this._bgsFadeCounter === 0 && this._bgsBuffer?._gainNode;
     };
 
     AudioManager.playDelayedSe = function() {
@@ -369,16 +370,8 @@
 
     AudioManager.isPlayingAnySe = function() {
         return this._seBuffers.some(function(audio) {
-            return audio.isExist();
+            return audio.isPlaying();
         });
-    };
-
-    //=============================================================================
-    // WebAudio
-    //  演奏が要求済みかどうかを返します。
-    //=============================================================================
-    WebAudio.prototype.isExist = function() {
-        return this._autoPlay;
     };
 
     //=============================================================================

@@ -6,6 +6,12 @@
 // http://opensource.org/licenses/mit-license.php
 // ----------------------------------------------------------------------------
 // Version
+// 2.4.1 2022/01/30 色相を変化させたとき入力した数値を反転させた内容が反映されてしまう問題を修正
+// 2.4.0 2021/07/12 敵キャラやピクチャを表示する際、色相を指定できる機能を追加
+// 2.3.2 2021/07/07 ヘルプの記載ミスを修正
+// 2.3.1 2021/06/24 プラグイン未適用のデータをロードしたときに発生するいくつかの事象を修正
+// 2.3.0 2021/05/18 プライオリティ設定に「-1」(下層タイルの背後で遠景の手前)を設定できるようにしました
+// 2.2.1 2021/05/05 アイコンセットの行を変更したときに正しくトリミングできない問題を修正
 // 2.2.0 2021/02/22 色調変更のタグが正常に機能していなかった問題を修正し、グレースケールを指定できるようにしました。
 // 2.1.1 2020/11/28 Trb_SimpleDashMotion.jsと併用したとき、プレイヤーの拡大率を変更したときも想定通りに表示されるよう修正
 // 2.1.0 2020/11/22 ApngPicture.jsと組み合わせてキャラクターとして表示したピクチャ、敵キャラ画像がアニメーションする機能を追加
@@ -82,11 +88,11 @@
  * 他のタグも同様です。
  * 例：<CGピクチャ:1,aaa><CGピクチャ:2,bbb>
  *
- * <CG敵キャラ:（ページ数）,（ファイル名）>
+ * <CG敵キャラ:（ページ数）,（ファイル名）,（色相）>
  * 指定したページが有効になった場合のグラフィックを敵キャラ画像から取得します。
  * 拡張子は不要です。歩行アニメ待機アニメは無効化されます。
  *
- * 例：<CG敵キャラ:1,Bat> or <CGEnemy:1,Bat>
+ * 例：<CG敵キャラ:1,Bat,90> or <CGEnemy:1,Bat,90>
  *
  * <CGアイコン:（ページ数）,（インデックス）>
  * 指定したページが有効になった場合のグラフィックをアイコン画像から取得します。
@@ -94,13 +100,13 @@
  *
  * 例：<CGアイコン:1,128> or <CGIcon:1,128>
  *
- * <CGフェイス:（ページ数）,（ファイル名）（インデックス）>
+ * <CGフェイス:（ページ数）,（ファイル名）,（インデックス）>
  * 指定したページが有効になった場合のグラフィックをフェイス画像から取得します。
  * 拡張子は不要です。歩行アニメ待機アニメは無効化されます。
  *
  * 例：<CGフェイス:1,Actor1,4> or <CGFace:1,Actor1,4>
  *
- * <CGアクター:（ページ数）,（ファイル名）（インデックス）>
+ * <CGアクター:（ページ数）,（ファイル名）,（インデックス）>
  * 指定したページが有効になった場合のグラフィックをバトラー画像から取得します。
  * 拡張子は不要です。歩行アニメ待機アニメは無効化されます。
  *
@@ -110,7 +116,7 @@
  * 指定したページが有効になった場合のグラフィックを遠景画像から取得します。
  * 拡張子は不要です。歩行アニメ待機アニメは無効化されます。
  *
- * 例：<CG遠景:1,Test> or <CGParallaxes:1,Test>
+ * 例：<CG遠景:1,Test> or <CGParallax:1,Test>
  *
  * 要注意！　これらのメモ欄でファイルを指定した場合、デプロイメント時に
  * 未使用ファイルとして除外される可能性があります。
@@ -236,7 +242,7 @@
  */
 (function() {
     'use strict';
-    
+
     const script = document.currentScript;
     const param = PluginManagerEx.createParameter(script);
 
@@ -293,6 +299,8 @@
         _Game_System_onAfterLoad.apply(this, arguments);
         if (!$gamePlayer.hasOwnProperty('_customResource')) {
             $gamePlayer.clearCgInfo();
+            $gamePlayer.followers().data().forEach(follower => follower.clearCgInfo());
+            $gameMap.vehicles().forEach(vehicle => vehicle.clearCgInfo());
         }
     };
 
@@ -312,7 +320,7 @@
         this._graphicRows     = 1;
         this._additionalX     = 0;
         this._additionalY     = 0;
-        this._customPriority  = -1;
+        this._customPriority  = null;
         this._scaleX          = 100;
         this._scaleY          = 100;
         this._tileBlockWidth  = 1;
@@ -323,11 +331,16 @@
         this._absoluteX       = null;
         this._absoluteY       = null;
         this._customTilesetId = 0;
+        this._graphicHue      = 0;
         this.setBlendMode(0);
     };
 
     Game_CharacterBase.prototype.customResource = function() {
         return this._customResource;
+    };
+
+    Game_CharacterBase.prototype.customResourceHue = function() {
+        return this._graphicHue;
     };
 
     Game_CharacterBase.prototype.customTilesetId = function() {
@@ -435,7 +448,7 @@
 
     const _Game_CharacterBase_screenZ      = Game_CharacterBase.prototype.screenZ;
     Game_CharacterBase.prototype.screenZ = function() {
-        return this._customPriority >= 0 ? this._customPriority : _Game_CharacterBase_screenZ.apply(this, arguments);
+        return this._customPriority !== null ? this._customPriority : _Game_CharacterBase_screenZ.apply(this, arguments);
     };
 
     Game_CharacterBase.prototype.changeImage = function(fileName, fileIndex) {
@@ -524,7 +537,7 @@
         }
         cgParams = this.getMetaCg(['プライオリティ', 'Priority']);
         if (cgParams) {
-            this._customPriority = getArgNumber(cgParams[1], 0, 10);
+            this._customPriority = getArgNumber(cgParams[1]);
         }
         cgParams = this.getMetaCg(['合成方法', 'BlendType']);
         if (cgParams) {
@@ -579,11 +592,13 @@
 
     const _Game_Event_setImage      = Game_Event.prototype.setImage;
     Game_Event.prototype.setImage = function(characterName, characterIndex) {
+        this._graphicHue = 0;
         let cgParams = this.getMetaCg(['ピクチャ', 'Picture']);
         if (cgParams) {
             this._customResource = 'Picture';
             this._graphicColumns = 1;
             this._graphicRows    = 1;
+            this._graphicHue     = getArgNumber(cgParams[2]);
             arguments[0]         = cgParams[1];
             arguments[1]         = 0;
         }
@@ -592,14 +607,16 @@
             this._customResource = $gameSystem.isSideView() ? 'SvEnemy' : 'Enemy';
             this._graphicColumns = 1;
             this._graphicRows    = 1;
+            this._graphicHue     = getArgNumber(cgParams[2]);
             arguments[0]         = cgParams[1];
             arguments[1]         = 0;
         }
         cgParams = this.getMetaCg(['アイコン', 'Icon']);
         if (cgParams) {
+            const bitmap = ImageManager.loadSystem('IconSet');
             this._customResource = 'System';
             this._graphicColumns = 16;
-            this._graphicRows    = 20;
+            this._graphicRows    = (bitmap.height / ImageManager.iconHeight) || 20;
             arguments[0]         = 'IconSet';
             arguments[1]         = getArgNumber(cgParams[1], 0, this._graphicColumns * this._graphicRows - 1);
         }
@@ -608,6 +625,7 @@
             this._customResource = 'Face';
             this._graphicColumns = 4;
             this._graphicRows    = 2;
+            this._graphicHue     = getArgNumber(cgParams[3]);
             arguments[0]         = cgParams[1];
             arguments[1]         = getArgNumber(cgParams[2], 0, this._graphicColumns * this._graphicRows - 1);
         }
@@ -616,6 +634,7 @@
             this._customResource = 'Parallax';
             this._graphicColumns = 1;
             this._graphicRows    = 1;
+            this._graphicHue     = getArgNumber(cgParams[2]);
             arguments[0]         = cgParams[1];
             arguments[1]         = 0;
         }
@@ -624,6 +643,7 @@
             this._customResource = 'SvActor';
             this._graphicColumns = 9;
             this._graphicRows    = 6;
+            this._graphicHue     = getArgNumber(cgParams[3]);
             arguments[0]         = cgParams[1];
             arguments[1]         = getArgNumber(cgParams[2], 0, this._graphicColumns * this._graphicRows - 1);
         }
@@ -767,7 +787,11 @@
     const _Sprite_Character_setCharacterBitmap      = Sprite_Character.prototype.setCharacterBitmap;
     Sprite_Character.prototype.setCharacterBitmap = function() {
         if (this._customResource) {
+            const hue = this._character.customResourceHue() || 0;
             this.bitmap = ImageManager['load' + this._customResource](this._characterName);
+            if (hue > 0) {
+                this.setHue(hue);
+            }
         } else {
             _Sprite_Character_setCharacterBitmap.apply(this, arguments);
         }

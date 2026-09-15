@@ -6,6 +6,16 @@
 // http://opensource.org/licenses/mit-license.php
 // ----------------------------------------------------------------------------
 // Version
+// 1.19.0.final 2024/09/25 スキップおよびオート時にアイコンではなく任意の画像にできる機能を追加
+// 1.18.4 2023/10/27 選択肢や数値入力のタイミングでは常にスキップを解除するよう修正
+// 1.18.3 2023/10/16 ボタンピクチャの原点設定の説明文を分かりやすく修正
+// 1.18.2 2023/06/03 スキップスイッチ、オートスイッチが設定されているとキーによるスキップオートが効かなくなる問題を修正
+// 1.18.1 2022/01/08 1.18.0でループボイスを再生するとオートモードで文章が送られなくなる問題を修正
+// 1.18.0 2022/01/08 SimpleVoice.jsと併用したとき、ボイス演奏中はオートモードによる文章送りを待機するよう変更
+// 1.17.0 2021/09/12 ピクチャによるクリックは押し続けスキップの対象外とするよう仕様をパラメータで選択可能にできるよう修正
+// 1.16.0 2021/09/08 スキップモードのときウェイトもスキップできる機能を追加
+// 1.15.1 2021/08/05 カスタムメニュー作成プラグインと併用したときにエラーが発生する現象を修正
+// 1.15.0 2021/06/15 ピクチャによるクリックは押し続けスキップの対象外とするよう仕様変更
 // 1.14.1 2020/09/02 MZ向けにコードとヘルプ修正
 // 1.14.0 2020/08/02 クリックすることで任意のスイッチをONにできるピクチャをメッセージウィンドウに表示する機能を追加
 // 1.13.0 2020/03/26 オート、スキップピクチャの表示方法をメッセージウィンドウからの相対座標と絶対座標とを選択できる機能を追加
@@ -40,6 +50,8 @@
  * @plugindesc MessageSkipPlugin
  * @target MZ
  * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/MessageSkip.js
+ * @base PluginCommonBase
+ * @orderAfter PluginCommonBase
  * @author triacontane
  *
  * @param SkipKey
@@ -75,12 +87,24 @@
  * @param SkipIcon
  * @desc メッセージスキップ中にウィンドウ右下に表示されるアイコン
  * @default 140
- * @type number
+ * @type icon
  *
  * @param AutoIcon
  * @desc メッセージオート中にウィンドウ右下に表示されるアイコン
  * @default 75
- * @type number
+ * @type icon
+ *
+ * @param SkipIconPicture
+ * @desc メッセージスキップ中にウィンドウ右下に表示されるピクチャ
+ * @default
+ * @type file
+ * @dir img/pictures/
+ *
+ * @param AutoIconPicture
+ * @desc メッセージオート中にウィンドウ右下に表示されるピクチャ
+ * @default
+ * @type file
+ * @dir img/pictures/
  *
  * @param IconX
  * @desc オート、スキップのアイコン位置を自由に変更したい場合に指定するX座標です。
@@ -99,6 +123,11 @@
  * @param PressingSkip
  * @desc スキップの判定が指定のキーを押している間のみになります。
  * @default false
+ * @type boolean
+ *
+ * @param PictureOutOfPressing
+ * @desc ピクチャは押し続けスキップの対象外とします。
+ * @default true
  * @type boolean
  *
  * @param AutoWaitFrame
@@ -172,13 +201,17 @@
  * @type switch
  *
  * @param PictureAnchor
- * @desc スキップ、オートの各ピクチャボタン座標の原点です。（0:左上、1:右上、2:左下、3:右下）
+ * @desc スキップ、オートの各ピクチャボタン座標の原点です。メッセージウィンドウの四隅が基準座標になります。
  * @default 0
  * @type select
- * @option 0
- * @option 1
- * @option 2
- * @option 3
+ * @option ウィンドウの左上
+ * @value 0
+ * @option ウィンドウの右上
+ * @value 1
+ * @option ウィンドウの左下
+ * @value 2
+ * @option ウィンドウの右下
+ * @value 3
  *
  * @param PicturePosType
  * @desc オート、スキップピクチャの配置方法です。相対座標を選択するとウィンドウ表示位置からの相対座標となります。
@@ -191,6 +224,11 @@
  * @desc 指定したスイッチがONのときプラグインの全機能が無効になります。
  * @default 0
  * @type switch
+ *
+ * @param skipWait
+ * @desc スキップモードのときウェイトもスキップします。
+ * @default false
+ * @type boolean
  *
  * @help メッセージウィンドウでメッセージのスキップやオートモードの切替ができます。
  * イベントが終了すると自働でスキップやオートモードは解除されます。
@@ -220,6 +258,8 @@
  * @plugindesc メッセージスキッププラグイン
  * @target MZ
  * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/MessageSkip.js
+ * @base PluginCommonBase
+ * @orderAfter PluginCommonBase
  * @author トリアコンタン
  *
  * @param スキップキー
@@ -243,24 +283,36 @@
  * @option A
  *
  * @param スキップスイッチ
- * @desc 指定した番号のスイッチがONになっている場合は常にスキップします。
+ * @desc 指定した番号のスイッチがONになっている場合は常にスキップします。OFFになると止まります。
  * @default 0
  * @type switch
  *
  * @param オートスイッチ
- * @desc 指定した番号のスイッチがONになっている場合は常にオートします。スキップが優先されます。
+ * @desc 指定した番号のスイッチがONになっている場合は常にオートします。スキップが優先されます。OFFになると止まります。
  * @default 0
  * @type switch
  *
  * @param スキップアイコン
  * @desc メッセージスキップ中にウィンドウ右下に表示されるアイコン
  * @default 140
- * @type number
+ * @type icon
  *
  * @param オートアイコン
  * @desc メッセージオート中にウィンドウ右下に表示されるアイコン
  * @default 75
- * @type number
+ * @type icon
+ *
+ * @param スキップアイコンピクチャ
+ * @desc メッセージスキップ中にウィンドウ右下に表示されるピクチャ
+ * @default
+ * @type file
+ * @dir img/pictures/
+ *
+ * @param オートアイコンピクチャ
+ * @desc メッセージオート中にウィンドウ右下に表示されるピクチャ
+ * @default
+ * @type file
+ * @dir img/pictures/
  *
  * @param アイコンX
  * @desc オート、スキップのアイコン位置を自由に変更したい場合に指定するX座標です。
@@ -279,6 +331,11 @@
  * @param 押し続けスキップ
  * @desc スキップの判定が指定のキーを押している間のみになります。
  * @default false
+ * @type boolean
+ *
+ * @param ピクチャは押し続け対象外
+ * @desc ピクチャは押し続けスキップの対象外とします。
+ * @default true
  * @type boolean
  *
  * @param オート待機フレーム
@@ -347,13 +404,17 @@
  * @type number
  *
  * @param ボタン原点
- * @desc スキップ、オートの各ピクチャボタン座標の原点です。（0:左上、1:右上、2:左下、3:右下）
+ * @desc スキップ、オートの各ピクチャボタン座標の原点です。メッセージウィンドウの四隅が基準座標になります。
  * @default 0
  * @type select
- * @option 0
- * @option 1
- * @option 2
- * @option 3
+ * @option ウィンドウの左上
+ * @value 0
+ * @option ウィンドウの右上
+ * @value 1
+ * @option ウィンドウの左下
+ * @value 2
+ * @option ウィンドウの右下
+ * @value 3
  *
  * @param ボタン表示スイッチID
  * @desc 指定した番号のスイッチがONのときのみスキップ、オートの各ピクチャボタンを表示します。0の場合は無条件で表示します。
@@ -374,6 +435,12 @@
  * @default 0
  * @type switch
  *
+ * @param skipWait
+ * @text ウェイトをスキップ
+ * @desc スキップモードのときウェイトもスキップします。
+ * @default false
+ * @type boolean
+ *
  * @help メッセージウィンドウでメッセージのスキップやオートモードの切替ができます。
  * イベントが終了すると自働でスキップやオートモードは解除されます。
  * 並列実行イベントは、通常イベントが実行中でない場合のみ解除されます。
@@ -393,7 +460,10 @@
  * 指定例：
  * 100 + textSize * 10
  *
- * このプラグインにはプラグインコマンドはありません。
+ * このプラグインの利用にはベースプラグイン『PluginCommonBase.js』が必要です。
+ * 『PluginCommonBase.js』は、RPGツクールMZのインストールフォルダ配下の
+ * 以下のフォルダに格納されています。
+ * dlc/BasicResources/plugins/official
  *
  * 利用規約：
  *  作者に無断で改変、再配布が可能で、利用形態（商用、18禁利用等）
@@ -449,8 +519,7 @@ function Sprite_Frame() {
 
     var convertEscapeCharacters = function(text) {
         if (isNotAString(text)) text = '';
-        var windowLayer = SceneManager._scene._windowLayer;
-        return windowLayer ? windowLayer.children[0].convertEscapeCharacters(text) : text;
+        return PluginManagerEx.convertEscapeCharacters(text);
     };
 
     var isNotAString = function(args) {
@@ -511,12 +580,14 @@ function Sprite_Frame() {
     var paramPictureAnchor        = getParamNumber(['PictureAnchor', 'ボタン原点']);
     var paramPictureSwitchId      = getParamNumber(['PictureSwitchId', 'ボタン表示スイッチID'], 0);
     var paramPressingSkip         = getParamBoolean(['PressingSkip', '押し続けスキップ']);
+    var paramPictureOutOfPressing = getParamBoolean(['PictureOutOfPressing', 'ピクチャは押し続け対象外']);
     var paramSkipSwitchId         = getParamNumber(['SkipSwitchId', 'スキップスイッチ'], 0);
     var paramAutoSwitchIId        = getParamNumber(['AutoSwitchIId', 'オートスイッチ'], 0);
     var paramInvalidSwitchId      = getParamNumber(['InvalidSwitchId', '無効化スイッチ'], 0);
     var paramIconX                = getParamNumber(['IconX', 'アイコンX'], 0);
     var paramIconY                = getParamNumber(['IconY', 'アイコンY'], 0);
     var paramPicturePosType       = getParamString(['PicturePosType', 'ピクチャ座標タイプ']);
+    var paramSkipWait             = getParamBoolean(['skipWait']);
 
     //=============================================================================
     // Game_Message
@@ -547,12 +618,20 @@ function Sprite_Frame() {
 
     Game_Message.prototype.setSkipFlg = function(value) {
         this._skipFlg = value;
-        if (this._skipFlg) this._autoFlg = false;
+        if (this._skipFlg) {
+            this._autoFlg = false;
+        }
+        if (paramSkipSwitchId > 0) {
+            $gameSwitches.setValue(paramSkipSwitchId, value);
+        }
     };
 
     Game_Message.prototype.setAutoFlg = function(value) {
         if (!this._skipFlg) {
             this._autoFlg = value;
+            if (paramAutoSwitchIId > 0) {
+                $gameSwitches.setValue(paramAutoSwitchIId, value);
+            }
         }
     };
 
@@ -591,6 +670,14 @@ function Sprite_Frame() {
         return this._interpreter === interpreter;
     };
 
+    var _Game_Interpreter_updateWaitCount = Game_Interpreter.prototype.updateWaitCount;
+    Game_Interpreter.prototype.updateWaitCount = function() {
+        if (paramSkipWait && $gameMessage.skipFlg()) {
+            this._waitCount = 0;
+        }
+        return _Game_Interpreter_updateWaitCount.apply(this, arguments);
+    };
+
     //=============================================================================
     // Window_Message
     //  メッセージスキップ状態を描画します。
@@ -611,8 +698,8 @@ function Sprite_Frame() {
     };
 
     Window_Message.prototype.updatePlacementIcon = function() {
-        this._icon.x = (paramIconX ? paramIconX - this.x : this.width - this._icon.width);
-        this._icon.y = (paramIconY ? paramIconY - this.y : this.height - this._icon.height);
+        this._icon.x = (paramIconX ? paramIconX - this.x : this.width - this._icon.width / 2 - 16);
+        this._icon.y = (paramIconY ? paramIconY - this.y : this.height - this._icon.height / 2 - 16);
     };
 
     Window_Message.prototype.createSpriteSkipButton = function() {
@@ -714,12 +801,14 @@ function Sprite_Frame() {
 
     Window_Message.prototype.updateAutoIcon = function() {
         if (this.messageSkip() && this.openness === 255) {
-            this._icon.refresh(getParamNumber(['SkipIcon', 'スキップアイコン']));
+            this._icon.refresh(getParamNumber(['SkipIcon', 'スキップアイコン']),
+                getParamString(['SkipIconPicture', 'スキップアイコンピクチャ']));
             this._icon.flashSpeed = 16;
             this._icon.flash      = true;
             this.updatePlacementIcon();
         } else if (this.messageAuto() && this.openness === 255) {
-            this._icon.refresh(getParamNumber(['AutoIcon', 'オートアイコン']));
+            this._icon.refresh(getParamNumber(['AutoIcon', 'オートアイコン']),
+                getParamString(['AutoIconPicture', 'オートアイコンピクチャ']));
             this._icon.flashSpeed = 2;
             this._icon.flash      = true;
             this.updatePlacementIcon();
@@ -740,9 +829,10 @@ function Sprite_Frame() {
     };
 
     Window_Message.prototype.updateSkipAuto = function() {
-        if (this.isClosed()) return;
         if (this.isAnySubWindowActive()) {
             $gameMessage.clearSkipInfo();
+        } else if (this.isClosed()) {
+            return;
         } else {
             this.setSkipAutoFlagByTrigger();
             this.setSkipAutoFlagBySwitch();
@@ -757,12 +847,18 @@ function Sprite_Frame() {
     };
 
     Window_Message.prototype.setSkipAutoFlagByTrigger = function() {
-        if (!paramPressingSkip && this.isTriggeredMessageSkip()) {
+        if (this.isTriggeredMessageSkip()) {
+            if (!paramPressingSkip) {
+                $gameMessage.toggleSkip();
+            }
+            this._pressSkipStop = false;
+        } else if (this.isTriggeredMessageSkipButton()) {
             $gameMessage.toggleSkip();
+            this._pressSkipStop = true;
         } else if (this.isTriggeredMessageAuto()) {
             $gameMessage.toggleAuto();
-        } else if (paramPressingSkip) {
-            $gameMessage.setSkipFlg(this.isPressedMessageSkip());
+        } else if (paramPressingSkip && (!this._pressSkipStop || !paramPictureOutOfPressing)) {
+            $gameMessage.setSkipFlg(this.isPressedMessageSkip() || this.isTriggeredMessageSkipButton(true));
         }
     };
 
@@ -804,17 +900,15 @@ function Sprite_Frame() {
 
     Window_Message.prototype.isTriggeredMessageSkip = function() {
         return Input.isTriggered('messageSkip') ||
-            Input.isTriggered(skipKeyName) ||
-            this.isTriggeredMessageSkipButton(false);
+            Input.isTriggered(skipKeyName);
     };
 
     Window_Message.prototype.isPressedMessageSkip = function() {
         return Input.isPressed('messageSkip') ||
-            Input.isPressed(skipKeyName) ||
-            this.isTriggeredMessageSkipButton(true);
+            Input.isPressed(skipKeyName);
     };
 
-    Window_Message.prototype.isTriggeredMessageSkipButton = function(pressed) {
+    Window_Message.prototype.isTriggeredMessageSkipButton = function(pressed = false) {
         return this.isTriggeredButton(this._skipButton, pressed);
     };
 
@@ -845,8 +939,10 @@ function Sprite_Frame() {
             return false;
         }
         if (this.messageAuto() && this._messageAutoCount <= 0) {
-            this.initializeMessageAutoCount();
-            return true;
+            if (!AudioManager.isExistVoice()) {
+                this.initializeMessageAutoCount();
+                return true;
+            }
         }
         return _Window_Message_isTriggered.apply(this, arguments) || this.messageSkip();
     };
@@ -861,6 +957,18 @@ function Sprite_Frame() {
     Window_Message.prototype.startPause = function() {
         _Window_Message_startPause.apply(this, arguments);
         if (this.messageSkip()) this.startWait(2);
+    };
+
+    AudioManager.isExistVoice = function() {
+        if (!AudioManager._voiceBuffers) {
+            return false;
+        }
+        this.filterPlayingVoice();
+        return this._voiceBuffers.some(buffer => !buffer.isLoop());
+    }
+
+    WebAudio.prototype.isLoop = function() {
+        return this._loop;
     };
 
     //=============================================================================
@@ -915,6 +1023,7 @@ function Sprite_Frame() {
             this._row    = Math.floor(bitmap.height / ImageManager.iconHeight);
         }.bind(this));
         this.bitmap      = bitmap;
+        this._iconBitmap = bitmap;
         this.anchor.x    = 0.5;
         this.anchor.y    = 0.5;
         this.flash       = false;
@@ -923,11 +1032,27 @@ function Sprite_Frame() {
         this.refresh(index ? index : 0);
     };
 
-    Sprite_Frame.prototype.refresh = function(index) {
-        if (!this.bitmap.isReady()) return;
+    Sprite_Frame.prototype.refresh = function(index, pictureName) {
+        if (pictureName) {
+            this.refreshPicture(pictureName);
+            return;
+        }
+        this.bitmap = this._iconBitmap;
+        if (!this.bitmap.isReady()) {
+            return;
+        }
         var w = ImageManager.iconWidth;
         var h = ImageManager.iconHeight;
         this.setFrame((index % this._column) * w, Math.floor(index / this._column) * h, w, h);
+    };
+
+    Sprite_Frame.prototype.refreshPicture = function(pictureName) {
+        this.bitmap = ImageManager.loadPicture(pictureName);
+        this.bitmap.addLoadListener(()=>{
+            if (this.bitmap !== this._iconBitmap) {
+                this.setFrame(0, 0, this.bitmap.width, this.bitmap.height);
+            }
+        });
     };
 
     Sprite_Frame.prototype.update = function() {

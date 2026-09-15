@@ -6,6 +6,8 @@
 // http://opensource.org/licenses/mit-license.php
 // ----------------------------------------------------------------------------
 // Version
+// 2.1.1 2022/02/04 2.1.0の機能で使用者を対象にしたスキルを指定した場合は、使用者に対してスキルが発動するよう変更
+// 2.1.0 2022/02/03 混乱スキルの対象者から使用者本人を除外できる設定を追加
 // 2.0.0 2021/03/28 MZで動作するよう全面的に再構築
 // 1.5.0 2020/05/23 混乱スキルの指定で、最後に使用したスキルを選択できる機能を追加
 // 1.4.1 2020/04/22 混乱スキルのターゲットが「敵n体ランダム」のとき全体攻撃になってしまう問題を修正
@@ -137,6 +139,12 @@
  * @desc 有効にすると直前にターゲットされたアクターもしくは敵キャラをターゲットにします。
  * @default false
  * @type boolean
+ *
+ * @param RemoveUser
+ * @text 使用者を除外
+ * @desc 有効にするとスキルの対象から本人が除外されます。ただし対象が『使用者』のスキルを指定すると通常通り使用します。
+ * @default false
+ * @type boolean
  */
 
 (()=> {
@@ -252,11 +260,17 @@
 
     Game_Action.prototype.setupConfusionExtendTarget = function(preTarget, extend) {
         const targetUnit = this.isForFriend() ? preTarget.opponentsUnit() : preTarget.friendsUnit();
+        const subject = this.subject();
+        if (extend.RemoveUser) {
+            subject.friendsUnit().setConfusionSubject(this.subject());
+        }
         this.setConfusionTarget(targetUnit, extend);
-        return this.targetsForConfusion(targetUnit);
+        const targets = this.targetsForConfusion(targetUnit, subject);
+        subject.friendsUnit().setConfusionSubject(null);
+        return targets;
     };
 
-    Game_Action.prototype.targetsForConfusion = function(unit) {
+    Game_Action.prototype.targetsForConfusion = function(unit, subject) {
         if (this.isForRandom()) {
             return this.randomTargets(unit);
         } else if (this.isForEveryone()) {
@@ -264,7 +278,7 @@
         } else if (this.isForOpponent()) {
             return this.targetsForAlive(unit);
         } else if (this.isForUser()) {
-            return [this.subject()];
+            return [subject];
         } else if (this.isForDeadFriend()) {
             return this.targetsForDead(unit);
         } else if (this.isForAliveFriend()) {
@@ -294,5 +308,28 @@
                 this._targetIndex = $gameTemp.lastActionData(5) - 1;
             }
         }
+    };
+
+    Game_Unit.prototype.setConfusionSubject = function(battler) {
+        this._confusionSubject = battler;
+    };
+
+    Game_Unit.prototype.filterConfusionSubject = function(member) {
+        if (!this._confusionSubject) {
+            return member;
+        }
+        return member.filter(battler => battler !== this._confusionSubject);
+    };
+
+    const _Game_Party_members = Game_Party.prototype.members;
+    Game_Party.prototype.members = function() {
+        const members = _Game_Party_members.apply(this, arguments);
+        return this.filterConfusionSubject(members);
+    };
+
+    const _Game_Troop_members = Game_Troop.prototype.members;
+    Game_Troop.prototype.members = function() {
+        const members = _Game_Troop_members.apply(this, arguments);
+        return this.filterConfusionSubject(members);
     };
 })();

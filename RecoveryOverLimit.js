@@ -6,6 +6,8 @@
  http://opensource.org/licenses/mit-license.php
 ----------------------------------------------------------------------------
  Version
+ 1.2.0 2024/12/31 限界突破が有効なとき、HP吸収でも反映されるよう修正
+ 1.1.0 2024/12/29 MZ対応版を作成
  1.0.0 2020/04/26 初版
 ----------------------------------------------------------------------------
  [Blog]   : https://triacontane.blogspot.jp/
@@ -14,37 +16,18 @@
 =============================================================================*/
 
 /*:
- * @plugindesc RecoveryOverLimitPlugin
- * @target MZ @url https://github.com/triacontane/RPGMakerMV/tree/mz_master @author triacontane
- *
- * @param OverLimitHpColor
- * @desc This is the color of the text when the HP has over limit.
- * @default 0
- * @type number
- * @min 0
- * @max 20
- *
- * @help RecoveryOverLimit.js
- *
- * You can create an active passive skill that allows you to
- * recover more HP than your original maximum.
- * Specify the following in the notes field of the database or
- * skill, item that has the feature.
- * <RecoveryOverLimit:50> // recover more than 50% of maximum HP.
- *
- * This plugin is released under the MIT License.
- */
-/*:ja
  * @plugindesc 回復限界突破プラグイン
- * @target MZ @url https://github.com/triacontane/RPGMakerMV/tree/mz_master @author トリアコンタン
+ * @target MZ
+ * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/RecoveryOverLimit.js
+ * @base PluginCommonBase
+ * @orderAfter PluginCommonBase
+ * @author トリアコンタン
  *
  * @param OverLimitHpColor
  * @text 限界突破HP文字色
- * @desc HPが限界突破しているときの文字色です。システムカラー(\c[n])から選択します。
+ * @desc HPが限界突破しているときの文字色です。
  * @default 0
- * @type number
- * @min 0
- * @max 20
+ * @type color
  *
  * @help RecoveryOverLimit.js
  *
@@ -63,75 +46,16 @@
  *  このプラグインはもうあなたのものです。
  */
 
-(function() {
+(()=> {
     'use strict';
-
-    /**
-     * Get database meta information.
-     * @param object Database item
-     * @param name Meta name
-     * @returns {String} meta value
-     */
-    var getMetaValue = function(object, name) {
-        return object.meta.hasOwnProperty(name) ? convertEscapeCharacters(object.meta[name]) : null;
-    };
-
-    /**
-     * Get database meta information.(for multi language)
-     * @param object Database item
-     * @param names Meta name array (for multi language)
-     * @returns {String} meta value
-     */
-    var getMetaValues = function(object, names) {
-        var metaValue;
-        names.some(function(name) {
-            metaValue = getMetaValue(object, name);
-            return metaValue !== null;
-        });
-        return metaValue;
-    };
-
-    /**
-     * Convert escape characters.(require any window object)
-     * @param text Target text
-     * @returns {String} Converted text
-     */
-    var convertEscapeCharacters = function(text) {
-        var windowLayer = SceneManager._scene._windowLayer;
-        return windowLayer ? windowLayer.children[0].convertEscapeCharacters(text.toString()) : text;
-    };
-
-    /**
-     * Create plugin parameter. param[paramName] ex. param.commandPrefix
-     * @param pluginName plugin name(EncounterSwitchConditions)
-     * @returns {Object} Created parameter
-     */
-    var createPluginParameter = function(pluginName) {
-        var paramReplacer = function(key, value) {
-            if (value === 'null') {
-                return value;
-            }
-            if (value[0] === '"' && value[value.length - 1] === '"') {
-                return value;
-            }
-            try {
-                return JSON.parse(value);
-            } catch (e) {
-                return value;
-            }
-        };
-        var parameter     = JSON.parse(JSON.stringify(PluginManager.parameters(pluginName), paramReplacer));
-        PluginManager.setParameters(pluginName, parameter);
-        return parameter;
-    };
-
-    var param = createPluginParameter('RecoveryOverLimit');
+    const script = document.currentScript;
+    const param = PluginManagerEx.createParameter(script);
 
     /**
      * Game_BattlerBase
      * 回復限界突破時にHPの上限を引き上げます。
      */
-    var _Game_BattlerBase_hpRate = Game_BattlerBase.prototype.hpRate;
+    const _Game_BattlerBase_hpRate = Game_BattlerBase.prototype.hpRate;
     Game_BattlerBase.prototype.hpRate = function() {
         return Math.min(_Game_BattlerBase_hpRate.apply(this, arguments), 1.0);
     };
@@ -141,16 +65,10 @@
     };
 
     Game_BattlerBase.prototype.findRecoveryOverLimitRate = function(skill) {
-        var rate = 0;
-        var traitObjects = this.traitObjects();
+        const traitObjects = this.traitObjects();
         traitObjects.push(skill);
-        traitObjects.forEach(function(traitObj) {
-            var meta = getMetaValues(traitObj,['RecoveryOverLimit', '回復限界突破']);
-            if (meta) {
-                rate = Math.max(rate, parseInt(convertEscapeCharacters(meta)));
-            }
-        });
-        return rate;
+        return traitObjects.reduce((prev, obj) =>
+            Math.max(prev, PluginManagerEx.findMetaValue(obj,['RecoveryOverLimit', '回復限界突破']) || 0), 0);
     };
 
     Game_BattlerBase.prototype.setOverLimitMaxHp = function(rate) {
@@ -159,9 +77,9 @@
         }
     };
 
-    var _Game_BattlerBase_refresh = Game_BattlerBase.prototype.refresh;
+    const _Game_BattlerBase_refresh = Game_BattlerBase.prototype.refresh;
     Game_BattlerBase.prototype.refresh = function() {
-        var realHp = this.findOverLimitHp();
+        const realHp = this.findOverLimitHp();
         _Game_BattlerBase_refresh.apply(this, arguments);
         if (realHp > 0) {
             this._hp = realHp;
@@ -173,7 +91,7 @@
             this._overLimitMaxHp = 0;
             return 0;
         } else {
-            var hp = Math.min(this._overLimitMaxHp, this._hp);
+            const hp = Math.min(this._overLimitMaxHp, this._hp);
             this._overLimitMaxHp = hp;
             return hp;
         }
@@ -183,7 +101,7 @@
      * Game_Action
      * 回復限界突破スキルを使用した場合に限界突破HPを設定します。
      */
-    var _Game_Action_executeHpDamage = Game_Action.prototype.executeHpDamage;
+    const _Game_Action_executeHpDamage = Game_Action.prototype.executeHpDamage;
     Game_Action.prototype.executeHpDamage = function(target, value) {
         target.setOverLimitMaxHp(this.findRecoveryOverLimitRate(value));
         _Game_Action_executeHpDamage.apply(this, arguments);
@@ -193,20 +111,33 @@
         if (damageValue >= 0) {
             return 0;
         }
-        var subject = this.subject();
+        const subject = this.subject();
         return subject ? subject.findRecoveryOverLimitRate(this.item()) : 0;
     };
 
+    const _Game_Action_gainDrainedHp = Game_Action.prototype.gainDrainedHp;
+    Game_Action.prototype.gainDrainedHp = function(value) {
+        if (this.isDrain()) {
+            let gainTarget = this.subject();
+            if (this._reflectionTarget) {
+                gainTarget = this._reflectionTarget;
+            }
+            gainTarget.setOverLimitMaxHp(this.findRecoveryOverLimitRate(-value));
+        }
+        _Game_Action_gainDrainedHp.apply(this, arguments);
+    };
+
     /**
-     * Window_Base
+     * ColorManager
      * HP限界突破時の文字色を取得します。
      */
-    var _Window_Base_hpColor = Window_Base.prototype.hpColor;
-    Window_Base.prototype.hpColor = function(actor) {
-        if (param.OverLimitHpColor && actor.isHpOverLimit()) {
-            return this.textColor(param.OverLimitHpColor);
+    const _ColorManager_hpColor = ColorManager.hpColor;
+    ColorManager.hpColor = function(actor) {
+        const color = param.OverLimitHpColor;
+        if (color && actor.isHpOverLimit()) {
+            return this.textColor(color);
         } else {
-            return _Window_Base_hpColor.apply(this, arguments);
+            return _ColorManager_hpColor.apply(this, arguments);
         }
     };
 })();

@@ -6,6 +6,10 @@
 // http://opensource.org/licenses/mit-license.php
 // ----------------------------------------------------------------------------
 // Version
+// 1.2.2 2023/10/07 IDEのブレークポイントを支援する機能はオプションにしました。
+// 1.2.1 2023/07/20 英語版パラメータのタイトルカットが間違っていたので修正
+// 1.2.0 2023/01/08 タイトルカット時の動作をニューゲーム開始か最新データをロードかで選べるよう仕様変更
+// 1.1.4 2022/04/30 EventRespawn.jsのリージョン機能で複製したイベントを消去してからマップリロード機能を使うとエラーになる問題に対処
 // 1.1.3 2021/04/10 タイトルカット設定時にCTRLキーを押し続けているとカットしなくなる機能が不完全だったので無効化
 // 1.1.2 2021/03/27 通常のロード時はイベントの消去状態を復元しないよう修正
 // 1.1.1 2020/10/11 AnimationMv.jsと組み合わせたとき、戦闘テストの敵グループが正常に選択されない競合を修正
@@ -53,9 +57,14 @@
  * @param CutTitle
  * @text Title Skip
  * @desc Skips the title screen and loads the most recent save file.
- * Hold down CTRL on launch to disable skip.
- * @default false
- * @type boolean
+ * @default 0
+ * @type select
+ * @option Invalid
+ * @value 0
+ * @option New game
+ * @value 1
+ * @option Latest data load
+ * @value 2
  *
  * @param RapidStart
  * @text Start Rapid Mode
@@ -246,10 +255,15 @@
  *
  * @param CutTitle
  * @text タイトルカット
- * @desc タイトル画面をとばして最新のセーブファイルをロードします。
- * 起動時にCTRLを押し続けるとカットが無効になります。
- * @default false
- * @type boolean
+ * @desc タイトル画面をとばしてゲームを開始します。
+ * @default 0
+ * @type select
+ * @option 無効
+ * @value 0
+ * @option ニューゲーム開始
+ * @value 1
+ * @option 最新データをロード
+ * @value 2
  *
  * @param RapidStart
  * @text 高速開始
@@ -313,6 +327,12 @@
  * @text リロード機能を使う
  * @desc オンフォーカスでマップとデータを再読込します。競合等で動作に問題がある場合は無効にしてください。
  * @default true
+ * @type boolean
+ *
+ * @param UseBreakPoint
+ * @text ブレークポイントを使う
+ * @desc IDEなどが提供するブレークポイント機能を使ったときに、キー押下判定が解除されない問題の対策です。
+ * @default false
  * @type boolean
  *
  * @help デベロッパツールの挙動を調整する制作支援プラグインです。
@@ -410,6 +430,210 @@
  *
  */
 
+/*:zh
+ * @plugindesc 开发辅助插件，用于改进开发者工具的运行行为。
+ * @author triacontane
+ * @base PluginCommonBase
+ * @orderAfter PluginCommonBase
+ * @target MZ
+ * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/DevToolsManage.js
+ *
+ * @param StartupDevTool
+ * @text 启动时打开开发者工具
+ * @desc 游戏启动时自动打开开发者工具（默认 F8 打开）。
+ * @default true
+ * @type boolean
+ *
+ * @param ShortcutList
+ * @text 快捷键列表
+ * @desc 可用的调试快捷功能列表。
+ * @type struct<ShortcutFunction>[]
+ *
+ * @param ShowFPS
+ * @text 显示 FPS
+ * @desc 启动时左上角显示 FPS。（FPS / MS / OFF）
+ * @default OFF
+ * @type select
+ * @option FPS
+ * @option MS
+ * @option OFF
+ *
+ * @param CutTitle
+ * @text 跳过标题画面
+ * @desc 启动时跳过标题画面。（0:无效 / 1:新游戏 / 2:读取最新存档）
+ * @default 0
+ * @type select
+ * @option 无效
+ * @value 0
+ * @option 新游戏
+ * @value 1
+ * @option 读取最新存档
+ * @value 2
+ *
+ * @param RapidStart
+ * @text 启动时启用加速模式
+ * @desc 游戏启动时以加速状态运行。（ON/OFF）
+ * @default false
+ * @type boolean
+ *
+ * @param RapidSpeed
+ * @text 加速倍率
+ * @desc 执行加速模式时的速度倍率，最高 16 倍。
+ * @default 2
+ * @type number
+ * @max 16
+ *
+ * @param SlowSpeed
+ * @text 减速倍率
+ * @desc 执行减速模式时的速度分母，最低 1/16 速度。
+ * @default 2
+ * @type number
+ * @max 16
+ *
+ * @param InvalidMessageSkip
+ * @text 禁用加速跳过文本
+ * @desc 禁用在加速模式下的消息自动跳过功能。
+ * @default false
+ * @type boolean
+ *
+ * @param MenuBarVisible
+ * @text 显示菜单栏
+ * @desc 是否显示调试菜单栏并执行各种命令。(ON/OFF)
+ * @default true
+ * @type boolean
+ *
+ * @param ClickMenu
+ * @text 右键调试菜单
+ * @desc 使用点击菜单执行调试命令。(-1:禁用 0:左键 1:滚轮 2:右键)
+ * @default 1
+ * @type select
+ * @option 禁用
+ * @value -1
+ * @option 左键
+ * @value 0
+ * @option 滚轮
+ * @value 1
+ * @option 右键
+ * @value 2
+ *
+ * @param OutputStartupInfo
+ * @text 启动时输出信息
+ * @desc 启动时输出引擎版本、用户代理等信息。
+ * @default true
+ * @type boolean
+ *
+ * @param StartupOnTop
+ * @text 最前端启动
+ * @desc 游戏窗口启动时固定在屏幕最前端。
+ * @default false
+ * @type boolean
+ *
+ * @param UseReloadData
+ * @text 启用数据重载
+ * @desc 当游戏重新获得焦点时自动重载地图与数据库。若发生冲突可禁用。
+ * @default true
+ * @type boolean
+ *
+ * @param UseBreakPoint
+ * @text 启用断点支持
+ * @desc 使用 IDE 的断点功能时防止按键状态被卡住。
+ * @default false
+ * @type boolean
+ *
+ * @help
+ * 本插件仅在本地测试环境中有效，用于支持开发调试。
+ *
+ * 【功能说明】
+ * 1. 游戏启动时自动打开开发者工具（默认 F8）。
+ *    即使关闭该选项，出现错误时也会自动打开。
+ *
+ * 2. 可将游戏窗口固定为最前端显示，方便边查看边调试。
+ *
+ * 3. 编辑器中修改地图或事件后保存，切回游戏窗口时自动重载数据。
+ *
+ * 4. 可跳过标题画面，直接开始新游戏或加载最新存档。
+ *
+ * 5. 支持加速/减速模式（最高 16 倍速 / 最低 1/16 倍速），
+ *    也可完全暂停游戏。
+ *    在窗口操作时自动恢复正常速度。
+ *
+ * 6. 可强制战斗胜利、失败或中断。
+ *    强制胜利后依然会获得奖励。
+ *
+ * 7. 可让指定脚本每帧自动执行，
+ *    当返回值变化时输出至控制台。
+ *
+ * 8. 支持外部启动战斗测试（URL 参数添加 ?btest）。
+ *
+ * 【无插件命令】
+ * 所有功能通过参数或快捷键、菜单操作实现。
+ *
+ * 【使用条款】
+ * 允许自由修改和再分发。
+ * 无论商业、非商业或成人用途均可。
+ * 作者放弃一切权利，本插件完全属于您。
+ */
+
+/*~struct~ShortcutFunction:zh
+ *
+ * @param Command
+ * @text 命令内容
+ * @desc 要执行的命令类型。
+ * @default
+ * @type select
+ * @option 置顶显示
+ * @value AlwaysOnTop
+ * @option 冻结画面
+ * @value Freeze
+ * @option 常驻脚本
+ * @value ExecuteScript
+ * @option 强制中断战斗
+ * @value ForceAbort
+ * @option 强制失败
+ * @value ForceDefeat
+ * @option 强制胜利
+ * @value ForceVictory
+ * @option 启用加速模式
+ * @value ToggleRapid
+ * @option 启用减速模式
+ * @value ToggleSlow
+ * @option 打开项目文件夹
+ * @value OpenProject
+ *
+ * @param HotKey
+ * @text 快捷键
+ * @desc 执行该命令的快捷键。
+ * @default
+ * @type select
+ * @option
+ * @option F1
+ * @option F2
+ * @option F3
+ * @option F4
+ * @option F5
+ * @option F6
+ * @option F7
+ * @option F8
+ * @option F9
+ * @option F10
+ * @option F11
+ * @option F12
+ *
+ * @param Alt
+ * @text 同时按下 ALT 键
+ * @desc 仅在按下 ALT 键的同时触发。
+ * @type boolean
+ * @default false
+ *
+ * @param Ctrl
+ * @text 同时按下 CTRL 键
+ * @desc 仅在按下 CTRL 键的同时触发。
+ * @type boolean
+ * @default false
+ *
+ */
+
+
 /**
  * Controller_NwJs
  * NW.jsのウィンドウを操作します。
@@ -500,7 +724,7 @@ function Controller_NwJs() {
     const _Graphics__onTick = Graphics._onTick;
     Graphics._onTick = function(deltaTime) {
         // for break point
-        if (deltaTime >= 6) {
+        if (deltaTime >= 6 && param.UseBreakPoint) {
             Input.clear();
             TouchInput.clear();
         }
@@ -972,7 +1196,6 @@ function Controller_NwJs() {
     const _DataManager_loadDatabase = DataManager.loadDatabase;
     DataManager.loadDatabase        = function() {
         if (this.isNeedSuppressBtest()) {
-            console.log(11111);
             this._suppressBattleTest = true;
         }
         _DataManager_loadDatabase.apply(this, arguments);
@@ -1033,11 +1256,19 @@ function Controller_NwJs() {
     };
 
     Scene_Boot.prototype.cutSceneTitle = function() {
-        if (param.CutTitle && !DataManager.isBattleTest() &&
-            !DataManager.isEventTest() && !Input.isPressed('control')) {
-            if (!this.goToLatestContinue()) {
+        if (DataManager.isBattleTest() || DataManager.isEventTest()) {
+            return;
+        }
+        switch (param.CutTitle) {
+            case 1:
                 this.goToNewGame();
-            }
+                break;
+            case 2:
+                const result = this.goToLatestContinue();
+                if (!result) {
+                    this.goToNewGame();
+                }
+                break;
         }
     };
 
@@ -1104,7 +1335,9 @@ function Controller_NwJs() {
 
     Game_Map.prototype.restoreEventErase = function() {
         this._eraseEvents.forEach(eventId => {
-            this._events[eventId].erase();
+            if (this._events[eventId]) {
+                this._events[eventId].erase();
+            }
         });
     };
 

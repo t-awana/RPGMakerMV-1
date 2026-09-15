@@ -6,6 +6,12 @@
 // http://opensource.org/licenses/mit-license.php
 // ----------------------------------------------------------------------------
 // Version
+// 2.2.2 2025/07/20 半歩移動禁止/許可のプラグインコマンド実行時にイベントの向きロックが解除されてしまう問題を修正
+// 2.2.1 2023/10/22 イベントの初期位置を半歩ずらしたときにアニメパターンが一瞬だけ初期化されてしまう問題を修正
+// 2.2.0 2022/07/03 プレイヤーやイベント単位で半歩移動を禁止にできる機能を追加
+// 2.1.2 2022/03/17 2.1.0の修正によりループしたマップでタッチ移動すると正しい場所へ移動できない問題を修正
+// 2.1.1 2022/03/09 タッチ移動の移動先画像を半歩に合わせて小さく変更
+// 2.1.0 2022/03/09 タッチ移動を半歩単位で指定できるよう修正
 // 2.0.2 2020/08/21 不要なヘルプを削除
 // 2.0.1 2020/08/21 ヘルプの英語対応
 // 2.0.0 2020/08/21 MZ用にプラグインコマンドの記述を修正
@@ -399,11 +405,53 @@
  *
  * @command HALF_MOVE_DISABLE
  * @text 半歩移動禁止
- * @desc 半歩移動を一時的に禁止します。この情報はセーブデータに含まれます。特定のイベント等で禁止したい場合等に使用します。
+ * @desc 半歩移動を一時的に禁止します。プレイヤーの半歩移動を禁止すると、半歩位置のイベントを起動できなくなる場合があります。
+ *
+ * @arg target
+ * @text 対象
+ * @desc 半歩移動を禁止にする対象です。
+ * @default -2
+ * @type select
+ * @option -2:全体
+ * @value -2
+ * @option -1:プレイヤー
+ * @value -1
+ * @option 0:このイベント
+ * @value 0
+ * @option 1:指定したIDのイベント
+ * @value 1
+ *
+ * @arg id
+ * @text イベントID
+ * @desc 対象を「指定したIDのイベント」に指定したときのイベントIDです。
+ * @type number
+ * @default 1
+ * @min 1
  *
  * @command HALF_MOVE_ENABLE
  * @text 半歩移動許可
  * @desc 禁止していた半歩移動をもとに戻します。
+ *
+ * @arg target
+ * @text 対象
+ * @desc 半歩移動を禁止にする対象です。
+ * @default -2
+ * @type select
+ * @option -2:全体
+ * @value -2
+ * @option -1:プレイヤー
+ * @value -1
+ * @option 0:このイベント
+ * @value 0
+ * @option 1:指定したIDのイベント
+ * @value 1
+ *
+ * @arg id
+ * @text イベントID
+ * @desc 対象を「指定したIDのイベント」に指定したときのイベントIDです。
+ * @type number
+ * @default 1
+ * @min 1
  *
  * @help キャラクターの移動単位が1タイルの半分になります。
  * 半歩移動が有効なら、乗り物以外は全て半歩移動になります。
@@ -609,13 +657,28 @@
     //=============================================================================
     var localHalfPositionCount = 0;
 
-    PluginManager.registerCommand(pluginName, 'HALF_MOVE_DISABLE', function () {
-        $gameSystem.setEnableHalfMove(false);
+    PluginManager.registerCommand(pluginName, 'HALF_MOVE_DISABLE', function (args) {
+        if (args.target >= -1) {
+            this.setHalfMove(args.target === '1' ? args.id : args.target, false);
+        } else {
+            $gameSystem.setEnableHalfMove(false);
+        }
     });
 
-    PluginManager.registerCommand(pluginName, 'HALF_MOVE_ENABLE', function () {
-        $gameSystem.setEnableHalfMove(true);
+    PluginManager.registerCommand(pluginName, 'HALF_MOVE_ENABLE', function (args) {
+        if (args.target >= -1) {
+            this.setHalfMove(args.target === '1' ? args.id : args.target, true);
+        } else {
+            $gameSystem.setEnableHalfMove(true);
+        }
     });
+
+    Game_Interpreter.prototype.setHalfMove = function(id, value) {
+        const character = this.character(parseInt(id));
+        if (character) {
+            character.setHalfMove(value);
+        }
+    };
 
     //=============================================================================
     // Game_System
@@ -635,8 +698,14 @@
         this._disableHalfMove = !value;
         $gamePlayer.locate($gamePlayer.x, $gamePlayer.y);
         $gameMap.events().forEach(function(event) {
-            event.locate(event.x, event.y);
+            event.locateForHalfMove(event.x, event.y);
         }.bind(this));
+    };
+
+    Game_Event.prototype.locateForHalfMove = function(x, y) {
+        const dir = this._prelockDirection;
+        this.locate(x, y);
+        this._prelockDirection = dir;
     };
 
     var _Game_System_onAfterLoad      = Game_System.prototype.onAfterLoad;
@@ -650,6 +719,30 @@
     //  座標計算を半分にします。
     //=============================================================================
     Game_Map.tileUnit = 0.5;
+
+    var _Game_Map_canvasToMapX = Game_Map.prototype.canvasToMapX;
+    Game_Map.prototype.canvasToMapX = function(x) {
+        if ($gamePlayer.isHalfMove()) {
+            const tileWidth = this.tileWidth();
+            const originX = this._displayX * tileWidth;
+            const mapX = Math.floor((originX + x) / tileWidth / Game_Map.tileUnit);
+            return this.roundX(mapX * Game_Map.tileUnit);
+        } else {
+            return _Game_Map_canvasToMapX.apply(this, arguments);
+        }
+    };
+
+    var _Game_Map_canvasToMapY = Game_Map.prototype.canvasToMapY;
+    Game_Map.prototype.canvasToMapY = function(y) {
+        if ($gamePlayer.isHalfMove()) {
+            const tileHeight = this.tileHeight();
+            const originY = this._displayY * tileHeight;
+            const mapY = Math.floor((originY + y) / tileHeight / Game_Map.tileUnit);
+            return this.roundY(mapY * Game_Map.tileUnit);
+        } else {
+            return _Game_Map_canvasToMapY.apply(this, arguments);
+        }
+    };
 
     var _Game_Map_xWithDirection      = Game_Map.prototype.xWithDirection;
     Game_Map.prototype.xWithDirection = function(x, d) {
@@ -1567,7 +1660,9 @@
         } else if (halfY) {
             newY += Game_Map.tileUnit;
         }
+        var pattern = this.pattern();
         this.locate(newX, newY);
+        this.setPattern(pattern);
     };
 
     var _Game_Event_setupPage      = Game_Event.prototype.setupPage;
@@ -1733,6 +1828,11 @@
         return !this._halfDisable && $gameSystem.canHalfMove();
     };
 
+    Game_CharacterBase.prototype.setHalfMove = function(value) {
+        this._halfDisable = !value;
+        this.locate(this.x, this.y);
+    };
+
     //=============================================================================
     // Game_Character
     //  移動ルート強制中は半歩移動を無効にします。
@@ -1778,6 +1878,17 @@
     //=============================================================================
     Game_Follower.prototype.isHalfMove = function() {
         return $gamePlayer.isHalfMove() || this.isHalfPosX() || this.isHalfPosY();
+    };
+
+    var _Sprite_Destination_createBitmap = Sprite_Destination.prototype.createBitmap;
+    Sprite_Destination.prototype.createBitmap = function() {
+        _Sprite_Destination_createBitmap.apply(this, arguments);
+        if ($gamePlayer.isHalfMove()) {
+            const tileWidth = $gameMap.tileWidth() * Game_Map.tileUnit;
+            const tileHeight = $gameMap.tileHeight() * Game_Map.tileUnit;
+            this.bitmap = new Bitmap(tileWidth, tileHeight);
+            this.bitmap.fillAll("white");
+        }
     };
 
     // Resolve conflict for MPP_MiniMap_OP1.js

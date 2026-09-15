@@ -6,6 +6,14 @@
 // http://opensource.org/licenses/mit-license.php
 // ----------------------------------------------------------------------------
 // Version
+// 2.3.1 2025/04/12 The play() request was interrupted by a call to pause()のエラー抑制
+// 2.3.0 2025/02/19 プラグインコマンドの動画ファイル指定で@fileに対応
+// 2.2.2 2024/09/15 敵キャラを動画表示する機能で、敵キャラの変身に対応できていなかった問題を修正
+// 2.2.1 2024/09/11 サブファオルダに配置された動画ファイルを再生できない問題を修正
+// 2.2.0 2022/03/10 敵キャラを動画にできる機能を追加
+// 2.1.0 2021/08/15 2.0.3の修正により動画音量種別をnoneにするとエラーになっていた問題を修正
+//                  動画ファイルの再生でファイル名に制御文字を使えるよう修正
+// 2.0.3 2021/07/31 動画音量種別に指定した項目のボリュームを0にしたとき、音量100で再生されてしまう問題を修正
 // 2.0.2 2020/09/13 ヘルプ微修正
 // 2.0.1 2020/09/13 ヘルプ微修正
 // 2.0.0 2020/09/13 MZで動作するよう全面的に改修
@@ -76,6 +84,8 @@
  * @text ファイル名
  * @desc 再生する動画ファイルです。『movies』フォルダ以下の動画ファイルを拡張子無しで入力します。
  * @default
+ * @type file
+ * @dir movies
  *
  * @arg loop
  * @text ループ
@@ -188,6 +198,13 @@
  * このプラグインは、ローカル実行(Game.exe)のみをサポート対象とします。
  * Webブラウザでも動作する可能性はありますが、自己責任でご利用ください。
  *
+ * ピクチャ同様、敵キャラを動画表示できます。
+ * 敵キャラのメモ欄に以下の通り設定してください。
+ *
+ * // 動画[aaa]を敵キャラ画像の代わりに表示します。
+ * <動画:aaa>
+ * <Movie:aaa>
+ *
  * このプラグインの利用にはベースプラグイン『PluginCommonBase.js』が必要です。
  * 『PluginCommonBase.js』は、RPGツクールMZのインストールフォルダ配下の
  * 以下のフォルダに格納されています。
@@ -299,7 +316,7 @@
 
     Game_Picture.prototype.showVideo = function(video) {
         this._videoReload = video.reload;
-        this._name = video.fileName;
+        this._name = PluginManagerEx.convertEscapeCharacters(video.fileName);
         this._videoLoop = video.loop;
         this._videoSmooth = video.smooth;
         this._videoFinishSwitch = video.finishSwitch;
@@ -384,6 +401,69 @@
 
     Game_Picture.prototype.getVideoTimePosition = function() {
         return this._videoTimePosition || 0;
+    };
+
+    const _Game_Enemy_setup = Game_Enemy.prototype.setup;
+    Game_Enemy.prototype.setup = function(enemyId, x, y) {
+        _Game_Enemy_setup.apply(this, arguments);
+        this.updateVideoName();
+    };
+
+    const _Game_Enemy_transform = Game_Enemy.prototype.transform;
+    Game_Enemy.prototype.transform = function(enemyId) {
+        _Game_Enemy_transform.apply(this, arguments);
+        this.updateVideoName();
+    };
+
+    Game_Enemy.prototype.updateVideoName = function() {
+        this._videoName = PluginManagerEx.findMetaValue(this.enemy(), ['Movie', '動画']);
+    };
+
+    const _Game_Enemy_battlerName = Game_Enemy.prototype.battlerName;
+    Game_Enemy.prototype.battlerName = function() {
+        return this._videoName ? this._videoName : _Game_Enemy_battlerName.apply(this, arguments);
+    };
+
+    Game_Enemy.prototype.isVideo = function() {
+        return !!this._videoName;
+    };
+
+    const _Sprite_Enemy_loadBitmap = Sprite_Enemy.prototype.loadBitmap;
+    Sprite_Enemy.prototype.loadBitmap = function(name) {
+        if (this._enemy.isVideo()) {
+            this.loadVideo(name);
+        } else {
+            this.destroyVideo();
+            _Sprite_Enemy_loadBitmap.apply(this, arguments);
+        }
+    };
+
+    Sprite_Enemy.prototype.loadVideo = function(name) {
+        if (this.isVideoEnemy()) {
+            this.destroyVideo();
+        }
+        this.bitmap = ImageManager.loadVideo(name, true);
+        this.bitmap.setVideoLoop(true);
+        this.bitmap.addLoadListener(()=> this.prepareVideo());
+        this._loadingState = 'loading';
+    };
+
+    Sprite_Enemy.prototype.isVideoEnemy = function() {
+        return this.bitmap && this.bitmap.isVideo();
+    };
+
+    Sprite_Enemy.prototype.destroyVideo = function() {
+        if (!this.isVideoEnemy()) {
+            return;
+        }
+        this.bitmap.destroy();
+        this.texture = new PIXI.Texture(Sprite._emptyBaseTexture, new Rectangle());
+        this.bitmap = null;
+    };
+
+    Sprite_Enemy.prototype.prepareVideo = function() {
+        this._refresh();
+        this._loadingState = 'prepared';
     };
 
     //=============================================================================
@@ -606,7 +686,7 @@
     };
 
     ImageManager.getVideoFilePath = function(filename) {
-        return 'movies/' + encodeURIComponent(filename) + this.getVideoFileExt();
+        return 'movies/' + Utils.encodeURI(filename) + this.getVideoFileExt();
     };
 
     ImageManager.getVideoFileExt = function() {
@@ -639,7 +719,7 @@
 
     AudioManager.getVideoPictureVolume = function() {
         const property = this._movieVolumePropertyMap[param.movieVolumeType];
-        return Video._volume * (this[property] || 100) / 100;
+        return Video._volume * (this.hasOwnProperty(property) ? this[property] / 100 : 1.0);
     };
 
     const _SceneManager_updateScene = SceneManager.updateScene;
@@ -687,7 +767,9 @@
     };
 
     Bitmap_Video.prototype.pause = function() {
-        this._video.pause();
+        if (this.isLoaded()) {
+            this._video.pause();
+        }
     };
 
     Bitmap_Video.prototype.play = function() {
@@ -744,6 +826,10 @@
 
     Bitmap_Video.prototype._onEnded = function() {
         this._ended = true;
+    };
+
+    Bitmap_Video.prototype.isLoaded = function() {
+        return this._video && this._loadingState === 'loaded';
     };
 
     Bitmap_Video.prototype._onError = function() {

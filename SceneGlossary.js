@@ -6,6 +6,23 @@
 // http://opensource.org/licenses/mit-license.php
 // ----------------------------------------------------------------------------
 // Version
+// 3.8.3 2026/03/31 敵キャラを時点に表示するとき、色相が反映されない問題を修正
+// 3.8.1 2024/04/20 用語辞典に戻るのコマンドを使ったとき、選択中の用語までスクロールしない問題を修正
+// 3.8.0 2023/08/16 用語辞典をキャンセルしてマップに戻ったときにONになるスイッチを追加
+// 3.7.8 2023/07/09 ウィンドウクラスを外部から参照できるよう修正
+// 3.7.7 2022/11/30 背景画像の伸縮表示が正常に行われていなかった問題を修正
+// 3.7.6 2022/05/06 プラグインコマンドから用語辞典を呼び出したとき、カテゴリ指定が正常に機能しない問題を修正
+// 3.7.5 2022/02/22 PNDK_LuggageCapacity.jsと併用したとき、未入手アイテムが表示されてしまう競合に対応
+// 3.7.4 2022/01/30 ヘルプに表示する改行コードが効かなくなっていた問題を修正
+// 3.7.3 2021/12/19 部分一致で自動登録されない問題を修正
+// 3.7.2 2021/12/19 敵キャラの自動登録が部分一致になっていた問題を修正
+// 3.7.1 2021/11/14 画像の自動縮小の機能が正常に動作しない問題を修正
+// 3.7.0 2021/11/10 用語未入手時の説明文を表示できる機能を追加
+//                  用語ピクチャの表示座標をピクセル単位で調整できる機能を追加
+// 3.6.1 2021/09/15 敵キャラ用語の自動取得で撃破しなくてもエンカウントしただけで登録されてしまう仕様を変更
+// 3.6.0 2021/06/27 ウィンドウスキンを自由に設定できる機能を追加
+// 3.5.1 2021/04/19 カテゴリ表示を有効にしたとき、リストをスクロールさせたあとカテゴリ選択に戻って別の項目を選択するとスクロール位置がおかしくなる問題を修正
+//                  MVで実装されていた説明の自動改行機能が無効になっていたので復元
 // 3.5.0 2021/03/12 ヘルプウィンドウの位置設定を追加
 // 3.4.0 2021/01/17 指定した用語ページを開くことでスイッチがONになる機能を追加
 //                  3.3.0の修正で用語名称が表示されなくなる場合がある問題を修正
@@ -113,6 +130,7 @@
  * @target MZ
  * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/SceneGlossary.js
  * @author triacontane
+ * @orderAfter PluginCommonBase
  * @base PluginCommonBase
  *
  * @param GlossaryInfo
@@ -126,6 +144,13 @@
  * @desc 用語集のフォントサイズです。
  * @default 22
  * @type number
+ * @parent Layout
+ *
+ * @param WindowSkin
+ * @desc 各ウィンドウのウィンドウスキンです。
+ * @default
+ * @type file
+ * @dir img/system
  * @parent Layout
  *
  * @param AutoResizePicture
@@ -491,6 +516,13 @@
  * @text 未入手アイテムの表示
  * @desc 未入手アイテムを指定した名前（？？？等）で表示します。指定しない場合この機能は無効になります。
  * @default
+ *
+ * @param CancelSwitchId
+ * @text キャンセル時スイッチ
+ * @desc 用語集画面でキャンセルしたときにONになるスイッチ番号です。
+ * @default 0
+ * @type switch
+ *
  */
 
 /*:ja
@@ -499,6 +531,7 @@
  * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/SceneGlossary.js
  * @author トリアコンタン
  * @base PluginCommonBase
+ * @orderAfter PluginCommonBase
  *
  * @param GlossaryInfo
  * @text 用語情報(設定必須)
@@ -515,6 +548,14 @@
  * @desc 用語集のフォントサイズです。
  * @default 22
  * @type number
+ * @parent Layout
+ *
+ * @param WindowSkin
+ * @text ウィンドウスキン
+ * @desc 各ウィンドウのウィンドウスキンです。
+ * @default
+ * @type file
+ * @dir img/system
  * @parent Layout
  *
  * @param AutoResizePicture
@@ -747,11 +788,14 @@
  * 3.「メモ欄」に以下の通り記述(不要な項目は省略可能)
  * <SG説明:説明文>           // 用語の説明文(※1)
  * <SG共通説明:説明文>       // 用語の共通説明文(使い回し用)
+ * <SG未入手説明:説明文>      // 未入手用語の説明文
  * <SGカテゴリ:カテゴリ名>   // 用語の属するカテゴリの名称
  * <SG手動>                  // 用語を自動登録の対象から除外する
  * <SGピクチャ:ファイル名>   // 用語のピクチャのファイル名
  * <SG敵キャラ:敵キャラID>   // ピクチャの代わりに敵キャラの画像を表示(※2)
  * <SGピクチャ位置:text>     // ピクチャの表示位置
+ * <SGピクチャX:100>        // 用語のピクチャのX座標補正
+ * <SGピクチャY:100>        // 用語のピクチャのY座標補正
  * <SGテキスト位置:100>      // テキストの表示位置
  *  top:ウィンドウの先頭 bottom:ウィンドウの下部 text:テキストの末尾
  * <SGピクチャ優先度:top>    // ピクチャの表示プライオリティ
@@ -953,7 +997,7 @@
  *
  * @param GlossaryHelp
  * @text 用語ヘルプ
- * @desc 用語リスト選択時のヘルプ画面に表示するテキストです。未指定の場合、ヘルプウィンドウは非表示になります。(改行コード:\n)
+ * @desc 用語リスト選択時のヘルプ画面に表示するテキストです。未指定の場合ウィンドウは非表示になります。(改行コード:\n)
  * @default ゲーム中に登場する用語を解説しています。
  *
  * @param CategoryHelp
@@ -1020,6 +1064,13 @@
  * @desc 用語アイテムのデータベース上の設定にかかわらず、アイコンを非表示にします。
  * @default false
  * @type boolean
+ *
+ * @param CancelSwitchId
+ * @text キャンセル時スイッチ
+ * @desc 用語集画面でキャンセルしたときにONになるスイッチ番号です。
+ * @default 0
+ * @type switch
+ *
  */
 
 (function() {
@@ -1081,7 +1132,7 @@
     PluginManagerEx.registerCommand(script, 'GLOSSARY_CALL', function(args) {
         $gameParty.clearGlossaryIndex();
         $gameParty.setSelectedGlossaryType(args.type);
-        if (args[1]) {
+        if (args.category) {
             var index = $gameParty.setGlossaryCategoryIndexByName(args.category);
             if (index >= 0) {
                 $gameParty.setGlossaryListIndex(args.listIndex || 0);
@@ -1116,6 +1167,24 @@
         } else {
             return 3;
         }
+    };
+
+    //=============================================================================
+    // Game_Message
+    //  戦闘開始時メッセージフラグを追加定義します。
+    //=============================================================================
+    var _Game_Message_clear      = Game_Message.prototype.clear;
+    Game_Message.prototype.clear = function() {
+      _Game_Message_clear.call(this, arguments);
+      this._isStartBattleMessage = false;
+    };
+
+    Game_Message.prototype.startBattleMessage = function() {
+      this._isStartBattleMessage = true;
+    };
+
+    Game_Message.prototype.isStartBattleMessage = function() {
+      return this._isStartBattleMessage;
     };
 
     //=============================================================================
@@ -1251,9 +1320,15 @@
         return orderA - orderB;
     };
 
-    Game_Party.prototype.gainGlossaryFromText = function(text) {
+    Game_Party.prototype.gainGlossaryFromText = function(text, likeFlag) {
         this.getAllHiddenGlossaryList().forEach(function(item) {
-            if (!this.hasItem(item) && this.isAutoGlossaryWord(item) && text.contains(item.name)) {
+            if (!this.hasItem(item) && this.isAutoGlossaryWord(item)) {
+                if (likeFlag && !text.contains(item.name)) {
+                    return;
+                }
+                if (!likeFlag && text !== item.name) {
+                    return;
+                }
                 this.setAutoAdditionTrigger(item);
                 this.gainGlossary(item);
             }
@@ -1503,22 +1578,34 @@
         return this._glossarySetting.HideIcon;
     };
 
+    Game_Party.prototype.applyGlossaryCancelSwitch = function() {
+        if (this._glossarySetting.CancelSwitchId > 0) {
+            $gameSwitches.setValue(this._glossarySetting.CancelSwitchId, true);
+        }
+    };
+
     //=============================================================================
     // Game_Troop
     //  敵キャラの名前を自動登録します。
     //=============================================================================
-    var _Game_Troop_setup      = Game_Troop.prototype.setup;
-    Game_Troop.prototype.setup = function(troopId) {
-        _Game_Troop_setup.apply(this, arguments);
+    Game_Troop.prototype.addEnemyGlossary = function() {
+        this.deadMembers().forEach(function(enemy) {
+            $gameParty.gainGlossaryFromText(enemy.originalName(), false);
+        });
+    };
+
+    var _BattleManager_gainRewards = BattleManager.gainRewards;
+    BattleManager.gainRewards = function() {
+        _BattleManager_gainRewards.apply(this, arguments);
         if (param.AutoAdditionEnemy) {
-            this.addEnemyGlossary();
+            $gameTroop.addEnemyGlossary();
         }
     };
 
-    Game_Troop.prototype.addEnemyGlossary = function() {
-        this.members().forEach(function(enemy) {
-            $gameParty.gainGlossaryFromText(enemy.originalName());
-        });
+    var _BattleManager_displayStartMessages = BattleManager.displayStartMessages;
+    BattleManager.displayStartMessages = function() {
+      $gameMessage.startBattleMessage();
+      _BattleManager_displayStartMessages.apply(this, arguments);
     };
 
     //=============================================================================
@@ -1598,7 +1685,7 @@
     var _Window_Message_startMessage      = Window_Message.prototype.startMessage;
     Window_Message.prototype.startMessage = function() {
         _Window_Message_startMessage.apply(this, arguments);
-        if (param.AutoAddition) $gameParty.gainGlossaryFromText(this.convertEscapeCharacters(this._textState.text));
+        if (param.AutoAddition) $gameParty.gainGlossaryFromText(this.convertEscapeCharacters(this._textState.text), !$gameMessage.isStartBattleMessage());
     };
 
     //=============================================================================
@@ -1608,7 +1695,7 @@
     var _Window_ScrollText_startMessage      = Window_ScrollText.prototype.startMessage;
     Window_ScrollText.prototype.startMessage = function() {
         _Window_ScrollText_startMessage.apply(this, arguments);
-        if (param.AutoAddition) $gameParty.gainGlossaryFromText(this.convertEscapeCharacters(this._text));
+        if (param.AutoAddition) $gameParty.gainGlossaryFromText(this.convertEscapeCharacters(this._text), true);
     };
 
     //=============================================================================
@@ -1647,6 +1734,7 @@
         this._helpTexts = $gameParty.getGlossaryHelpMessages();
         this.updateHelp('');
         this._helpWindow.setFramelessDesign();
+        this._helpWindow.setGlossaryWindowSkin();
     };
 
     Scene_Glossary.prototype.createGlossaryWindow = function() {
@@ -1692,8 +1780,8 @@
             var sprite    = new Sprite();
             sprite.bitmap = ImageManager.loadPicture(pictureName, 0);
             sprite.bitmap.addLoadListener(function() {
-                sprite.scale.x = Graphics.boxWidth / sprite.width;
-                sprite.scale.y = Graphics.boxHeight / sprite.height;
+                sprite.scale.x = Graphics.width / sprite.width;
+                sprite.scale.y = Graphics.height / sprite.height;
             }.bind(this));
             this._backgroundSprite = sprite;
             this.addChild(this._backgroundSprite);
@@ -1710,10 +1798,10 @@
         if (this._helpTexts[0]) {
             if (typeof TranslationManager !== 'undefined') {
                 TranslationManager.getTranslatePromise(helpText).then(function(translatedText) {
-                    this._helpWindow.setText(translatedText.replace(/\\n/g, '\n'));
+                    this._helpWindow.setText(translatedText.replace(/\x1bn/g, '\n'));
                 }.bind(this));
             } else {
-                this._helpWindow.setText(helpText.replace(/\\n/g, '\n'));
+                this._helpWindow.setText(helpText.replace(/\x1bn/g, '\n'));
             }
         } else {
             this._helpWindow.visible = false;
@@ -1792,6 +1880,7 @@
         }
         this._glossaryListWindow.deactivateAndHide();
         this._glossaryListWindow.deselect();
+        this._glossaryListWindow.setTopRow(0);
         this.refreshCompleteWindow();
         this._confirmWindow.deactivateAndHide();
         this.updateHelp(this._helpTexts[1]);
@@ -1802,7 +1891,7 @@
         this._glossaryListWindow.refresh();
         this._glossaryListWindow.activateAndShow();
         if (indexInit) {
-            this._glossaryListWindow.select(0);
+            this._glossaryListWindow.forceSelect(0);
         }
         this._glossaryCategoryWindow.deactivateAndHide();
         this.refreshCompleteWindow();
@@ -1821,6 +1910,7 @@
     };
 
     Scene_Glossary.prototype.escapeScene = function() {
+        $gameParty.applyGlossaryCancelSwitch();
         this.popScene();
     };
 
@@ -1853,6 +1943,13 @@
         }
     };
 
+    Window_Base.prototype.setGlossaryWindowSkin = function() {
+        if (!param.WindowSkin) {
+            return;
+        }
+        this.windowskin = ImageManager.loadSystem(param.WindowSkin);
+    };
+
     //=============================================================================
     // Window_Selectable
     //  アクティブウィンドウを切り替えます。
@@ -1874,6 +1971,7 @@
     function Window_GlossaryCategory() {
         this.initialize.apply(this, arguments);
     }
+    window.Window_GlossaryCategory = Window_GlossaryCategory;
     Window_GlossaryCategory.prototype             = Object.create(Window_Selectable.prototype);
     Window_GlossaryCategory.prototype.constructor = Window_GlossaryCategory;
 
@@ -1881,6 +1979,7 @@
         this._glossaryListWindow = glWindow;
         Window_Selectable.prototype.initialize.call(this, glWindow);
         this._data = null;
+        this.setGlossaryWindowSkin();
         this.refresh();
         this.selectLastIndex();
         this.setFramelessDesign();
@@ -1940,6 +2039,7 @@
     function Window_GlossaryList() {
         this.initialize.apply(this, arguments);
     }
+    window.Window_GlossaryList = Window_GlossaryList;
     Window_GlossaryList.prototype             = Object.create(Window_ItemList.prototype);
     Window_GlossaryList.prototype.constructor = Window_GlossaryList;
 
@@ -1951,6 +2051,7 @@
         }
         var width = $gameParty.getGlossaryListWidth();
         Window_ItemList.prototype.initialize.call(this, new Rectangle(0, gWindow.y, width, height));
+        this.setGlossaryWindowSkin();
         this.refresh();
         this.selectLastIndex();
         this.setFramelessDesign();
@@ -1960,6 +2061,10 @@
         var lastIndex = $gameParty.getGlossaryListIndex();
         if (lastIndex >= 0) {
             this.select(Math.min(lastIndex, this.maxItems() - 1));
+            const row = this.row();
+            if (row >= this.maxPageRows()) {
+                this.setTopRow(this.row());
+            }
         }
     };
 
@@ -1994,6 +2099,9 @@
         this.changePaintOpacity(1);
         this.resetTextColor();
     };
+
+    // for PNDK_LuggageCapacity.js
+    Window_GlossaryList.prototype.drawItemNameWithCP = function() {};
 
     Window_GlossaryList.prototype.isShowIcon = function(item) {
         return item.iconIndex > 0 && !$gameParty.isHideGlossaryIcon();
@@ -2133,6 +2241,7 @@
     Window_GlossaryConfirm.prototype.initialize = function(listWindow) {
         this._listWindow = listWindow;
         Window_Command.prototype.initialize.call(this, this.getWindowRect());
+        this.setGlossaryWindowSkin();
     };
 
     Window_GlossaryConfirm.prototype.updatePlacement = function() {
@@ -2177,6 +2286,7 @@
         var height       = Graphics.boxHeight - y - (param.BottomHelpMode ? helpWindow.height : 0);
         this._listWindow = listWindow;
         Window_Base.prototype.initialize.call(this, new Rectangle(x, y, width, height));
+        this.setGlossaryWindowSkin();
         this.setFramelessDesign();
     };
 
@@ -2197,6 +2307,7 @@
     function Window_Glossary() {
         this.initialize.apply(this, arguments);
     }
+    window.Window_Glossary = Window_Glossary;
     Window_Glossary.prototype             = Object.create(Window_Base.prototype);
     Window_Glossary.prototype.constructor = Window_Glossary;
 
@@ -2208,6 +2319,7 @@
         this._pageIndex = 0;
         this._enemy     = null;
         Window_Base.prototype.initialize.call(this, new Rectangle(x, y, width, height));
+        this.setGlossaryWindowSkin();
         this.setFramelessDesign();
     };
 
@@ -2355,7 +2467,11 @@
         this.contents.clear();
         this._pageIndex = pageIndex;
         this.updateArrows();
-        if (!this._itemData || !$gameParty.hasGlossary(this._itemData)) {
+        if (!this._itemData) {
+            return;
+        }
+        if (!$gameParty.hasGlossary(this._itemData)) {
+            this.drawNoItemText();
             return;
         }
         var bitmap    = this.getGlossaryBitmap(pageIndex);
@@ -2366,6 +2482,13 @@
             this.drawItemSub(null, listIndex, pageIndex);
         }
         if (!noSound) SoundManager.playCursor();
+    };
+
+    Window_Glossary.prototype.drawNoItemText = function() {
+        var text = this.getMetaContents(['未入手説明', 'NoItemText']);
+        if (text) {
+            this.drawItemText(text, 0);
+        }
     };
 
     Window_Glossary.prototype.clearItem = function() {
@@ -2382,10 +2505,96 @@
         } else {
             if (enemy) {
                 var methodName = $gameSystem.isSideView() ? 'loadSvEnemy' : 'loadEnemy';
-                return ImageManager[methodName](enemy.battlerName, enemy.battlerHue);
+                var bitmap = null;
+                if (enemy.battlerHue) {
+                    ImageManager.noCache = true;
+                    bitmap = ImageManager[methodName](enemy.battlerName);
+                    bitmap.addLoadListener(function() {
+                        bitmap.rotateHue(enemy.battlerHue);
+                    });
+                } else {
+                    bitmap = ImageManager[methodName](enemy.battlerName);
+                }
+
+                return bitmap;
             } else {
                 return null;
             }
+        }
+    };
+
+    ImageManager.noCache = false;
+
+    var _ImageManager_loadBitmapFromUrl = ImageManager.loadBitmapFromUrl;
+    ImageManager.loadBitmapFromUrl = function(url) {
+        if (this.noCache) {
+            this.noCache = false;
+            return Bitmap.load(url);
+        } else {
+            return _ImageManager_loadBitmapFromUrl.apply(this, arguments);
+        }
+    };
+
+    Bitmap.prototype.rotateHue = function(offset) {
+        function rgbToHsl(r, g, b) {
+            var cmin = Math.min(r, g, b);
+            var cmax = Math.max(r, g, b);
+            var h = 0;
+            var s = 0;
+            var l = (cmin + cmax) / 2;
+            var delta = cmax - cmin;
+
+            if (delta > 0) {
+                if (r === cmax) {
+                    h = 60 * (((g - b) / delta + 6) % 6);
+                } else if (g === cmax) {
+                    h = 60 * ((b - r) / delta + 2);
+                } else {
+                    h = 60 * ((r - g) / delta + 4);
+                }
+                s = delta / (255 - Math.abs(2 * l - 255));
+            }
+            return [h, s, l];
+        }
+
+        function hslToRgb(h, s, l) {
+            var c = (255 - Math.abs(2 * l - 255)) * s;
+            var x = c * (1 - Math.abs((h / 60) % 2 - 1));
+            var m = l - c / 2;
+            var cm = c + m;
+            var xm = x + m;
+
+            if (h < 60) {
+                return [cm, xm, m];
+            } else if (h < 120) {
+                return [xm, cm, m];
+            } else if (h < 180) {
+                return [m, cm, xm];
+            } else if (h < 240) {
+                return [m, xm, cm];
+            } else if (h < 300) {
+                return [xm, m, cm];
+            } else {
+                return [cm, m, xm];
+            }
+        }
+
+        if (offset && this.width > 0 && this.height > 0) {
+            offset = ((offset % 360) + 360) % 360;
+            var context = this.context;
+            var imageData = context.getImageData(0, 0, this.width, this.height);
+            var pixels = imageData.data;
+            for (var i = 0; i < pixels.length; i += 4) {
+                var hsl = rgbToHsl(pixels[i + 0], pixels[i + 1], pixels[i + 2]);
+                var h = (hsl[0] + offset) % 360;
+                var s = hsl[1];
+                var l = hsl[2];
+                var rgb = hslToRgb(h, s, l);
+                pixels[i + 0] = rgb[0];
+                pixels[i + 1] = rgb[1];
+                pixels[i + 2] = rgb[2];
+            }
+            context.putImageData(imageData, 0, 0);
         }
     };
 
@@ -2504,8 +2713,7 @@
     };
 
     Window_Glossary.prototype.calcItemTextHeight = function(text) {
-        var textState = {index: 0, x: 0, y: 0, left: 0, text: text};
-        return this.calcTextHeight(textState, true) + 4;
+        return this.textSizeEx(text).height + 4;
     };
 
     Window_Glossary.prototype.calcItemPictureHeight = function(bitmap, text) {
@@ -2554,14 +2762,24 @@
         return text;
     };
 
-    Window_Glossary.prototype.processNormalCharacter = function(textState) {
-        var c = textState.text[textState.index];
-        var w = this.textWidth(c);
-        if (textState.x + w > this.contentsWidth()) {
-            this.processNewLine(textState);
-            textState.index--;
+    Window_Glossary.prototype.processAllText = function(textState) {
+        var x = 0;
+        while (textState.index < textState.text.length) {
+            var c = textState.text[textState.index];
+            if (c === "\n") {
+                x = 0;
+            }
+            var w = this.textWidth(c);
+            if (x + w > this.contentsWidth()) {
+                this.flushTextState(textState);
+                this.processNewLine(textState);
+                x = 0;
+            } else {
+                this.processCharacter(textState);
+                x += w;
+            }
         }
-        Window_Base.prototype.processNormalCharacter.apply(this, arguments);
+        this.flushTextState(textState);
     };
 
     Window_Glossary.prototype.drawPicture = function(bitmap, text, y) {
@@ -2582,8 +2800,20 @@
                 x = this.contentsWidth() - dw;
                 break;
         }
+        x += this.getPictureAdjustX(item);
+        y += this.getPictureAdjustY(item);
         this.contents.blt(bitmap, 0, 0, bitmap.width, bitmap.height, x, y, dw, dy);
         this.drawPlusPicture();
+    };
+
+    Window_Glossary.prototype.getPictureAdjustX = function(item) {
+        var metaValue = getMetaValues(item, ['ピクチャX', 'PictureX'], this._pageIndex);
+        return metaValue ? getArgNumber(metaValue) : 0;
+    };
+
+    Window_Glossary.prototype.getPictureAdjustY = function(item) {
+        var metaValue = getMetaValues(item, ['ピクチャY', 'PictureY'], this._pageIndex);
+        return metaValue ? getArgNumber(metaValue) : 0;
     };
 
     Window_Glossary.prototype.getPictureScale = function(item, bitmap, text) {

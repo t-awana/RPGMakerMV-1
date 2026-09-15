@@ -6,6 +6,18 @@
  http://opensource.org/licenses/mit-license.php
 ----------------------------------------------------------------------------
  Version
+ 2.4.3 2025/06/29 PluginCommonBaseが必要な旨のヘルプを追加
+ 2.4.2 2023/10/27 シーンのAPNGに表示スイッチを指定したとき、スイッチがOFFでも一瞬だけ表示されてしまう問題を修正
+ 2.4.1 2023/03/21 GIFファイルを使用する場合のヘルプ文言を分かりやすく修正
+ 2.4.0 2022/12/25 APNG画像のぼかしを除去できる設定を追加
+ 2.3.4 2022/12/15 GIFファイルを選択したとき内部で保持する画像サイズが0になってしまう問題を修正
+ 2.3.3 2022/12/14 サイドビュー用の敵キャラファイルの設定パラメータにgifファイルかどうかのフラグがなかった問題を修正
+ 2.3.2 2022/10/27 1セルのフレーム数を変更したとき、ループ回数の設定が機能しなくなる問題を修正
+ 2.3.1 2022/06/06 apngのフレーム数を指定したとき停止スイッチが機能しない問題を修正
+ 2.3.0 2022/02/06 1セルごとのフレーム数をゲーム側で設定できるパラメータを追加
+ 2.2.1 2021/10/09 AltMenuScreen2MZとの並び順を指定するアノテーションを追加
+ 2.2.0 2021/04/26 2.1.6の修正でGIFファイルが使えなくなっていた問題を修正
+                  GIFファイルの指定方法を変更
  2.1.6 2021/03/10 システム画像や敵キャラ画像としてapngを使用するとき、ピクチャにも同名の画像がないとエラーになる問題を修正
  2.1.5 2021/02/01 数字のみのファイルをapng指定して起動するとエラーになる問題を修正
  2.1.4 2021/01/18 2.1.3の修正でapngでないピクチャや敵キャラを表示しようとするとエラーになる問題を修正
@@ -38,6 +50,10 @@
  * @target MZ
  * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/ApngPicture.js
  * @base PluginCommonBase
+ * @base PixiApngAndGif
+ * @orderAfter PluginCommonBase
+ * @orderAfter PixiApngAndGif
+ * @orderBefore AltMenuScreen2MZ
  * @author triacontane
  *
  * @param PictureList
@@ -97,7 +113,7 @@
  * If the display is slow, please try GIF animation.
  *
  * If you want to use GIFs, please note that the editor will not recognize
- * files with a GIF extension.
+ * files without a GIF extension.
  * Please enter the file name with the extension directly in the parameter.
  * You can also display the picture from a script or by using
  * Please use a dummy png file of the same name to specify it.
@@ -110,17 +126,21 @@
  * @target MZ
  * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/ApngPicture.js
  * @base PluginCommonBase
+ * @base PixiApngAndGif
+ * @orderAfter PluginCommonBase
+ * @orderAfter PixiApngAndGif
+ * @orderBefore AltMenuScreen2MZ
  * @author トリアコンタン
  *
  * @param PictureList
  * @text APNGのピクチャリスト
- * @desc APNGとして扱うピクチャ画像のリストです。GIFを指定したい場合は拡張子付きで直接入力してください。
+ * @desc APNGとして扱うピクチャ画像のリストです。GIFを指定したい場合は直接入力してください。
  * @default []
  * @type struct<PictureApngRecord>[]
  *
  * @param EnemyList
  * @text APNGの敵キャラリスト
- * @desc APNGとして扱う敵キャラ画像のリストです。GIFを指定したい場合は拡張子付きで直接入力してください。
+ * @desc APNGとして扱う敵キャラ画像のリストです。GIFを指定したい場合は直接入力してください。
  * @default []
  * @type struct<EnemyApngRecord>[]
  *
@@ -132,7 +152,7 @@
  *
  * @param SceneApngList
  * @text シーンAPNGのリスト
- * @desc シーンごとに表示するAPNGのリストです。GIFを指定したい場合は拡張子付きで直接入力してください。
+ * @desc シーンごとに表示するAPNGのリストです。GIFを指定したい場合は直接入力してください。
  * @default []
  * @type struct<SceneApngRecord>[]
  *
@@ -154,6 +174,18 @@
  * @default 0
  * @type switch
  *
+ * @param FrameCount
+ * @text 1セルのフレーム数
+ * @desc 設定すると1セルごとのフレーム数をゲーム側で固定にできます。
+ * @default 0
+ * @type number
+ *
+ * @param NoSmooth
+ * @text ぼかし除去
+ * @desc 画像拡大時にぼかしが入らなくなります。
+ * @default false
+ * @type boolean
+ *
  * @help ApngPicture.js
  *
  * APNG、もしくはGIFアニメの取り扱いを可能にします。
@@ -174,10 +206,13 @@
  * 表示が遅い場合はGIFアニメもお試しください。
  *
  * GIFを使用したい場合、拡張子がgifのファイルはエディタで認識されないので
- * パラメータに拡張子付きのファイル名を直接入力してください。
- * また、ピクチャを表示するときはスクリプトから表示するか
- * 同名のダミーpngファイルを使って指定してください。
- * また、GIFはエディタの暗号化機能の対象外となります。
+ * ファイル名が同一のダミーpngファイルを用意して選択してください。
+ * ただし、GIFはエディタの暗号化機能の対象外となります。
+ *
+ * このプラグインの利用にはベースプラグイン『PluginCommonBase.js』が必要です。
+ * 『PluginCommonBase.js』は、RPGツクールMZのインストールフォルダ配下の
+ * 以下のフォルダに格納されています。
+ * dlc/BasicResources/plugins/official
  *
  * 利用規約：
  *  作者に無断で改変、再配布が可能で、利用形態（商用、18禁利用等）
@@ -234,6 +269,12 @@
  * @require 1
  * @dir img/system/
  * @type file
+ *
+ * @param Gif
+ * @text GIFファイル
+ * @desc 対象がGIFファイルの場合はONにしてください。ファイル名は拡張子なしのファイル名を指定してください。
+ * @default false
+ * @type boolean
  *
  * @param CachePolicy
  * @text キャッシュ方針
@@ -310,6 +351,12 @@
  * @dir img/pictures/
  * @type file
  *
+ * @param Gif
+ * @text GIFファイル
+ * @desc 対象がGIFファイルの場合はONにしてください。ファイル名は拡張子なしのファイル名を指定してください。
+ * @default false
+ * @type boolean
+ *
  * @param CachePolicy
  * @text キャッシュ方針
  * @desc 画像のキャッシュ方針です。大量にキャッシュするとメモリ使用量に影響が出る場合があります。
@@ -345,6 +392,12 @@
  * @dir img/enemies/
  * @type file
  *
+ * @param Gif
+ * @text GIFファイル
+ * @desc 対象がGIFファイルの場合はONにしてください。ファイル名は拡張子なしのファイル名を指定してください。
+ * @default false
+ * @type boolean
+ *
  * @param CachePolicy
  * @text キャッシュ方針
  * @desc 画像のキャッシュ方針です。大量にキャッシュするとメモリ使用量に影響が出る場合があります。
@@ -379,6 +432,12 @@
  * @require 1
  * @dir img/sv_enemies/
  * @type file
+ *
+ * @param Gif
+ * @text GIFファイル
+ * @desc 対象がGIFファイルの場合はONにしてください。ファイル名は拡張子なしのファイル名を指定してください。
+ * @default false
+ * @type boolean
  *
  * @param CachePolicy
  * @text キャッシュ方針
@@ -435,6 +494,12 @@
  * @require 1
  * @dir img/system/
  * @type file
+ *
+ * @param Gif
+ * @text
+ * @desc
+ * @default false
+ * @type boolean
  *
  * @param CachePolicy
  * @desc Cache policy
@@ -502,6 +567,12 @@
  * @dir img/pictures/
  * @type file
  *
+ * @param Gif
+ * @text
+ * @desc
+ * @default false
+ * @type boolean
+ *
  * @param CachePolicy
  * @desc Cache policy
  * @default 0
@@ -533,6 +604,12 @@
  * @dir img/enemies/
  * @type file
  *
+ * @param Gif
+ * @text
+ * @desc
+ * @default false
+ * @type boolean
+ *
  * @param CachePolicy
  * @desc Cache policy
  * @default 0
@@ -563,6 +640,12 @@
  * @require 1
  * @dir img/sv_enemies/
  * @type file
+ *
+ * @param Gif
+ * @text
+ * @desc
+ * @default false
+ * @type boolean
  *
  * @param CachePolicy
  * @desc Cache policy
@@ -619,12 +702,8 @@
         }
 
         addImage(item, option) {
-            let name = String(item.FileName) || '';
-            let ext = Utils.hasEncryptedImages() ? 'png_' : 'png';
-            name = name.replace(/\.gif$/gi, function() {
-                ext = 'gif';
-                return '';
-            });
+            const name = String(item.FileName) || '';
+            const ext = this.findExt(item);
             const path = name.match(/http:/) ? name : `img/${this._folder}/${name}.${ext}`;
             if (!this._fileHash.hasOwnProperty(name)) {
                 this._fileHash[name] = ApngLoader.convertDecryptExt(path);
@@ -633,6 +712,14 @@
                 PIXI.Loader.shared.add(path, option);
             }
         }
+
+        findExt(item) {
+            if (item.Gif) {
+                return 'gif'
+            } else {
+                return Utils.hasEncryptedImages() ? 'png_' : 'png';
+            }
+        };
 
         getLoadOption() {
             return {
@@ -666,7 +753,10 @@
             }
             const sprite = pixiApng.sprite;
             sprite.pixiApng = pixiApng;
-            sprite.pixiApngOption = this._options[name]
+            sprite.pixiApngOption = this._options[name];
+            if (param.NoSmooth) {
+                pixiApng.textures.forEach(texture => texture.baseTexture.scaleMode = PIXI.SCALE_MODES.NEAREST);
+            }
             return sprite;
         }
 
@@ -859,19 +949,13 @@
                 this._apngSprite.pixiApng.play();
             }
             this.addChild(this._apngSprite);
-            const original = this.loadStaticImage(name);
-            original.addLoadListener(() => {
-                this.bitmap = new Bitmap(original.width, original.height);
-            });
+            const frame = this._apngSprite.pixiApng.textures[0]._frame;
+            this.bitmap = new Bitmap(frame.width, frame.height);
             this.updateApngAnchor();
             this.updateApngBlendMode();
         }
         this._apngLoopCount = 1;
         this._apngLoopFrame = 0;
-    };
-
-    Sprite.prototype.loadStaticImage = function() {
-        return null;
     };
 
     Sprite.prototype.destroyApngIfNeed = function() {
@@ -926,13 +1010,25 @@
     Sprite.prototype.update = function() {
         _Sprite_update.apply(this, arguments);
         if (this._apngSprite) {
+            if (param.FrameCount > 0 && !this._apngSpritePause) {
+                this.updateApngFrame();
+            }
             this.updateApngSwitchStop();
             this.updateApngFrameStop();
         }
     };
 
+    Sprite.prototype.updateApngFrame = function() {
+        if (this._apngStop) {
+            return;
+        }
+        const frameLength = this._apngSprite.pixiApng.getFramesLength();
+        const frame = Math.floor(Graphics.frameCount / param.FrameCount) % frameLength;
+        this._apngSprite.pixiApng.jumpToFrame(frame);
+    };
+
     Sprite.prototype.updateApngFrameStop = function() {
-        if (!param.StopLastFrame) {
+        if (!param.StopLastFrame && !param.FrameCount) {
             return;
         }
         const frame = this._apngSprite.pixiApng.__status.frame;
@@ -947,6 +1043,7 @@
         const frameLength = this._apngSprite.pixiApng.getFramesLength();
         if (loopLimit <= this._apngLoopCount && frameLength <= frame + 1) {
             this._apngSprite.pixiApng.stop();
+            this._apngStop = true;
         }
     };
 
@@ -966,6 +1063,10 @@
 
     Sprite.prototype.getStopSwitch = function() {
         return this._apngSprite.pixiApngOption.StopSwitch;
+    };
+
+    Sprite.prototype.isGif = function() {
+        return this._apngSprite && this._apngSprite.pixiApngOption.Gif;
     };
 
     /**
@@ -1003,10 +1104,6 @@
         }
     };
 
-    Sprite_Picture.prototype.loadStaticImage = function(name) {
-        return ImageManager.loadPicture(name);
-    };
-
     /**
      * Sprite_Enemy
      * APNGとして登録されている敵キャラの読み込みを追加します。
@@ -1022,14 +1119,6 @@
             return SceneManager.tryLoadApngSideEnemy(name);
         } else {
             return SceneManager.tryLoadApngEnemy(name);
-        }
-    };
-
-    Sprite_Enemy.prototype.loadStaticImage = function(name) {
-        if ($gameSystem.isSideView()) {
-            return ImageManager.loadSvEnemy(name);
-        } else {
-            return ImageManager.loadEnemy(name);
         }
     };
 
@@ -1053,6 +1142,7 @@
             }
             this._switch = item.Switch;
             this._priority = item.Priority;
+            this.updateVisibly();
         }
 
         loadApngSprite(name) {
@@ -1061,6 +1151,10 @@
 
         update() {
             super.update();
+            this.updateVisibly();
+        }
+
+        updateVisibly() {
             this.visible = this.isValid();
         }
 
@@ -1070,10 +1164,6 @@
 
         getPriority() {
             return this._priority;
-        }
-
-        loadStaticImage(name) {
-            return ImageManager.loadSystem(name);
         }
     }
 })();

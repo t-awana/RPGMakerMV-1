@@ -6,6 +6,7 @@
  http://opensource.org/licenses/mit-license.php
 ----------------------------------------------------------------------------
  Version
+ 1.0.2 2021/08/31 ヘルプのプラグイン名表記の誤りを修正
  1.0.1 2020/11/30 英訳版ヘルプをご提供いただいて追加
  1.0.0 2020/06/15 MV版から流用作成
 ----------------------------------------------------------------------------
@@ -22,7 +23,7 @@
  * @orderAfter PluginCommonBase
  * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/EventMovableLimitation.js
  *
- * @help EventMovableRange.js
+ * @help EventMovableLimitation.js
  *
  * Limit the movable range of events.
  * If you try to move beyond the limits from the initial placement, you will not be able to move.
@@ -44,7 +45,7 @@
  * @orderAfter PluginCommonBase
  * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/EventMovableLimitation.js
  *
- * @help EventMovableRange.js
+ * @help EventMovableLimitation.js
  *
  * イベントの移動可能な範囲を制限します。
  * 初期配置から制限を超えて移動しようとすると移動できなくなります。
@@ -61,6 +62,51 @@
  *  作者に無断で改変、再配布が可能で、利用形態（商用、18禁利用等）
  *  についても制限はありません。
  *  このプラグインはもうあなたのものです。
+ */
+/*:zh
+ * @plugindesc 事件移动范围限制插件
+ * @author triacontane
+ * @target MZ
+ * @base PluginCommonBase
+ * @orderAfter PluginCommonBase
+ * @url https://github.com/triacontane/RPGMakerMV/tree/mz_master/EventMovableLimitation.js
+ *
+ * @help EventMovableLimitation.js
+ *
+ * 【功能说明】
+ * 限制事件的可移动范围。
+ * 当事件尝试超出设定的移动范围时，将无法继续移动。
+ *
+ * 【使用方法】
+ * 请在事件的备注（Note）中添加以下格式的指令：
+ *
+ * <移动限制:u, d, l, r>
+ * <Movable:u, d, l, r>
+ *
+ * 参数说明：
+ *  u ：向上可移动的最大格数  
+ *  d ：向下可移动的最大格数  
+ *  l ：向左可移动的最大格数  
+ *  r ：向右可移动的最大格数  
+ *
+ * 示例：
+ * <Movable:2,3,1,1>
+ * → 该事件可以：
+ *    向上移动2格，
+ *    向下移动3格，
+ *    向左移动1格，
+ *    向右移动1格。
+ *
+ * 若为某一方向设置负值（如 -1），则表示该方向的移动不受限制。
+ *
+ * 【注意事项】
+ * - 移动范围的计算基于事件的初始位置。
+ * - 适用于 RPG Maker MZ。
+ *
+ * 【许可】
+ * 本插件以 MIT 许可证发布。
+ * 您可自由修改、再发布、商用或成人游戏中使用，无需署名。
+ * 该插件完全归您所有。
  */
 
 (() => {
